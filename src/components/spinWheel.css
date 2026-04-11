@@ -1,0 +1,313 @@
+.ag-spin-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(15, 23, 42, 0.48);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.ag-spin-modal {
+  position: relative;
+  width: 100%;
+  max-width: 396px;
+  border-radius: 28px;
+  background: #ffffff;
+  border: 1px solid #e8edf4;
+  box-shadow:
+    0 28px 52px rgba(15, 23, 42, 0.32),
+    0 8px 12px rgba(15, 23, 42, 0.1);
+  padding: 16px 15px 16px;
+  overflow: hidden;
+}
+
+.ag-spin-close {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  border: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 10px rgba(15, 23, 42, 0.12);
+}
+
+.ag-spin-header {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.ag-spin-title {
+  margin: 0;
+  font-size: 27px;
+  line-height: 1.08;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.ag-spin-subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.ag-spin-wheel-stage {
+  position: relative;
+  width: min(304px, calc(100vw - 68px));
+  aspect-ratio: 1;
+  margin: 0 auto;
+  filter: drop-shadow(0 12px 20px rgba(15, 23, 42, 0.2));
+}
+
+.ag-spin-pointer {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 22px solid #14532d;
+  filter: drop-shadow(0 6px 7px rgba(15, 23, 42, 0.38));
+  z-index: 7;
+}
+
+.ag-spin-pointer::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: -27px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #14532d, #166534);
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 3px 6px rgba(15, 23, 42, 0.25);
+}
+
+.ag-wheel-rotate-layer {
+  width: 100%;
+  height: 100%;
+  transition: transform 3.7s cubic-bezier(0.14, 0.84, 0.2, 1);
+  will-change: transform;
+}
+
+.ag-wheel-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 32%, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0));
+}
+
+.ag-wheel-label {
+  fill: #ffffff;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.015em;
+  paint-order: stroke;
+  stroke: rgba(15, 23, 42, 0.28);
+  stroke-width: 1.3px;
+  stroke-linejoin: round;
+}
+
+.ag-spin-hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 70px;
+  height: 70px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  border: 3px solid #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 12px 24px rgba(15, 23, 42, 0.24),
+    inset 0 4px 9px rgba(255, 255, 255, 0.92);
+  z-index: 6;
+}
+
+.ag-spin-hub::after {
+  content: "";
+  position: absolute;
+  width: 45px;
+  height: 45px;
+  border-radius: 999px;
+  border: 1.2px solid rgba(148, 163, 184, 0.5);
+}
+
+.ag-spin-hub::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.2);
+}
+
+.ag-spin-hub-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.ag-spin-action {
+  margin-top: 14px;
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(95deg, #15803d, #22c55e 45%, #16a34a);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  padding: 13px 14px;
+  box-shadow: 0 10px 16px rgba(22, 163, 74, 0.3);
+  transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+}
+
+.ag-spin-action:active:not(:disabled) {
+  transform: scale(0.985);
+  box-shadow: 0 7px 12px rgba(22, 163, 74, 0.24);
+}
+
+.ag-spin-action:disabled {
+  background: linear-gradient(92deg, #94a3b8, #64748b);
+  box-shadow: none;
+}
+
+.ag-spin-result-card {
+  margin-top: 12px;
+  border-radius: 20px;
+  border: 1px solid #b7f3ce;
+  background: linear-gradient(180deg, #f0fdf4, #e9fbf1);
+  box-shadow: 0 10px 18px rgba(16, 185, 129, 0.14);
+  padding: 12px 12px 11px;
+}
+
+.ag-spin-result-card--rare {
+  border-color: #f59e0b;
+  background: linear-gradient(180deg, #fffbeb, #fff7ed);
+  box-shadow:
+    0 0 0 3px rgba(251, 191, 36, 0.2),
+    0 10px 16px rgba(217, 119, 6, 0.15);
+  animation: agSpinRareGlow 1.4s ease-in-out infinite;
+}
+
+.ag-spin-result-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #166534;
+}
+
+.ag-spin-result-card--rare .ag-spin-result-row {
+  color: #92400e;
+}
+
+.ag-spin-result-row strong {
+  font-size: 14px;
+  line-height: 1.28;
+  letter-spacing: 0.01em;
+}
+
+.ag-spin-result-card button {
+  margin-top: 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #166534;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 9px 13px;
+  box-shadow: 0 7px 12px rgba(22, 101, 52, 0.28);
+}
+
+.ag-spin-result-card--rare button {
+  background: #b45309;
+}
+
+.ag-confetti-layer {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 12;
+}
+
+.ag-confetti-piece {
+  position: absolute;
+  top: -12px;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  opacity: 0;
+  animation-name: agConfettiFall;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+
+@keyframes agConfettiFall {
+  0% {
+    opacity: 0.95;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 340px, 0) rotate(420deg);
+  }
+}
+
+@keyframes agSpinRareGlow {
+  0% {
+    box-shadow:
+      0 0 0 3px rgba(251, 191, 36, 0.15),
+      0 10px 16px rgba(217, 119, 6, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgba(251, 191, 36, 0.28),
+      0 12px 20px rgba(217, 119, 6, 0.18);
+  }
+  100% {
+    box-shadow:
+      0 0 0 3px rgba(251, 191, 36, 0.15),
+      0 10px 16px rgba(217, 119, 6, 0.12);
+  }
+}
+
+@media (max-width: 360px) {
+  .ag-spin-wheel-stage {
+    width: min(284px, calc(100vw - 56px));
+  }
+
+  .ag-wheel-label {
+    font-size: 10px;
+  }
+
+  .ag-spin-hub {
+    width: 64px;
+    height: 64px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-wheel-rotate-layer,
+  .ag-spin-result-card--rare,
+  .ag-confetti-piece {
+    transition: none;
+    animation: none;
+  }
+}

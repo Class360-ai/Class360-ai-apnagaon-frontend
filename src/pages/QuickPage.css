@@ -1,0 +1,36 @@
+.ag-quick-section {
+  animation: agQuickSectionIn 320ms ease-out both;
+}
+
+.ag-quick-card {
+  animation: agQuickCardIn 340ms ease-out both;
+}
+
+@keyframes agQuickCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes agQuickSectionIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-quick-section,
+  .ag-quick-card {
+    animation: none;
+  }
+}
