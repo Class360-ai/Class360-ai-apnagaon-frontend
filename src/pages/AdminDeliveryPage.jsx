@@ -4,11 +4,12 @@ import { ArrowLeft, RefreshCw, Truck } from "lucide-react";
 import AdminLayout from "../components/AdminLayout";
 import OrderStatusBadge from "../components/OrderStatusBadge";
 import DeliveryPartnerList from "../components/admin/delivery/DeliveryPartnerList";
+import DeliveryPartnerForm from "../components/admin/delivery/DeliveryPartnerForm";
 import DeliveryAssignmentCard from "../components/admin/delivery/DeliveryAssignmentCard";
-import { authAPI, ordersAPI, safeFetch } from "../utils/api";
-import { normalizeRole } from "../utils/roleUtils";
+import { authAPI, deliveryPartnersAPI, ordersAPI, safeFetch } from "../utils/api";
 import { formatAddressLine } from "../utils/locationHelpers";
 import { formatPrice } from "../utils/helpers";
+import { normalizeDeliveryPartner } from "../utils/deliveryPartnerStorage";
 
 const filterModes = ["all", "unassigned", "assigned", "active"];
 
@@ -18,18 +19,12 @@ const callPhone = (phone) => {
   return true;
 };
 
-const normalizePartner = (user = {}) => {
-  const role = normalizeRole(user.role);
-  if (!["delivery", "rider"].includes(role)) return null;
-  return {
-    id: user.id || user._id,
-    name: user.name || "Delivery Partner",
-    phone: user.phone || "",
-    area: user.area || user.location || user.shop?.area || "",
-    available: user.available !== false,
-    vehicleType: user.vehicleType || "Bike",
-    activeOrdersCount: Number(user.activeOrdersCount) || 0,
-  };
+const toArray = (data, keys = []) => {
+  if (Array.isArray(data)) return data;
+  for (const key of keys) {
+    if (Array.isArray(data?.[key])) return data[key];
+  }
+  return [];
 };
 
 const AdminDeliveryPage = () => {
@@ -45,19 +40,26 @@ const AdminDeliveryPage = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [orderData, userData] = await Promise.all([
+    const [orderData, partnerData, userData] = await Promise.all([
       safeFetch(() => ordersAPI.getAll(), []),
+      safeFetch(() => deliveryPartnersAPI.getAll(), []),
       safeFetch(() => authAPI.users(), []),
     ]);
-    const orderList = Array.isArray(orderData) ? orderData : orderData?.orders || [];
+
+    const orderList = toArray(orderData, ["orders"]);
+    const partnerList = toArray(partnerData, ["deliveryPartners", "partners"]);
     const userList = Array.isArray(userData) ? userData : [];
-    const nextPartners = userList.map(normalizePartner).filter(Boolean);
+
+    const basePartners = partnerList.length ? partnerList : userList;
+    const normalizedPartners = basePartners.map(normalizeDeliveryPartner).filter(Boolean);
     const partnerCount = new Map();
+
     orderList.forEach((order) => {
       const key = String(order.deliveryPartnerId || order.riderId || "");
       if (key) partnerCount.set(key, (partnerCount.get(key) || 0) + 1);
     });
-    setPartners(nextPartners.map((partner) => ({ ...partner, activeOrdersCount: partnerCount.get(String(partner.id)) || 0 })));
+
+    setPartners(normalizedPartners.map((partner) => ({ ...partner, activeOrdersCount: partnerCount.get(String(partner.id)) || 0 })));
     setOrders(Array.isArray(orderList) ? orderList : []);
     setLoading(false);
   }, []);
@@ -66,6 +68,21 @@ const AdminDeliveryPage = () => {
     const timer = window.setTimeout(load, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  const createPartner = async (payload) => {
+    const created = await deliveryPartnersAPI.create(payload);
+    await load();
+    return created;
+  };
+
+  const seedPartners = async () => {
+    const seeded = await safeFetch(() => deliveryPartnersAPI.seed(), null);
+    if (!seeded) {
+      throw new Error("Unable to seed delivery partners");
+    }
+    await load();
+    return seeded;
+  };
 
   const stats = useMemo(() => {
     const unassigned = orders.filter((order) => !order.deliveryPartnerId && !order.riderId);
@@ -155,6 +172,8 @@ const AdminDeliveryPage = () => {
 
         <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-3">
+            <DeliveryPartnerForm onCreate={createPartner} onSeed={seedPartners} />
+
             <div className="flex flex-wrap gap-2 rounded-[28px] bg-white p-3 shadow-sm ring-1 ring-slate-100">
               {filterModes.map((mode) => (
                 <button

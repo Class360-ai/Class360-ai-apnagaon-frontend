@@ -8,7 +8,7 @@ const roleCheck = require("../middleware/roleCheck");
 const router = express.Router();
 const allowedStatuses = new Set(["pending", "approved", "rejected", "suspended"]);
 
-router.use(requireAuth, roleCheck("admin"));
+router.use(requireAuth, roleCheck("owner"));
 
 router.get("/partners", async (req, res) => {
   const partners = await Partner.find({}).sort({ createdAt: -1 }).limit(200);

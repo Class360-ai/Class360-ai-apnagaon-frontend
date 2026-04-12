@@ -22,33 +22,29 @@ const FoodCard = ({
     onCardClick?.(food);
   };
 
-  const placeholderImage = "https://via.placeholder.com/220x220?text=Food+Item&bg=FFF8F2&fg=FF7A18";
+  const placeholderImage = "https://via.placeholder.com/400x400?text=Food+Item&bg=FFF8F2&fg=FF7A18";
+  const imageSrc = !imageError ? food.image || placeholderImage : placeholderImage;
+  const name = lang === "hi" ? food.nameHi || food.name : food.name;
+  const badgeText = lang === "hi" ? food.badgeHi || food.badge : food.badge;
 
   return (
     <div
       onClick={handleCardClick}
-      className="group relative rounded-2xl overflow-hidden bg-white transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 cursor-pointer"
+      className="group relative flex h-full flex-col overflow-hidden rounded-2xl bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer"
       style={{
         boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
       }}
     >
-      {/* Image Section */}
-      <div className="relative overflow-hidden h-48 bg-[#FFF8F2]">
+      <div className="relative aspect-[1/1] overflow-hidden bg-[#FFF8F2]">
         <img
-          src={
-            !imageError
-              ? food.image || placeholderImage
-              : placeholderImage
-          }
+          src={imageSrc}
           onError={() => setImageError(true)}
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           alt={food.name || "Food item"}
         />
 
-        {/* Dark Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
 
-        {/* Top-left Discount Badge */}
         {food.discount ? (
           <div
             className="absolute top-3 left-3 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white shadow-lg"
@@ -60,22 +56,12 @@ const FoodCard = ({
           </div>
         ) : null}
 
-        {/* Top-right Badge (Popular/Best Seller) */}
-        {food.badge ? (
+        {badgeText ? (
           <div className="absolute top-3 right-3 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-[#FF7A18] shadow-md">
-            {lang === "hi"
-              ? food.badgeHi || food.badge
-              : food.badge}
+            {badgeText}
           </div>
         ) : null}
 
-        {/* Rating Badge (if available) */}
-        {food.rating && (
-          <div className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-xs font-semibold text-[#1A1A1A] shadow-md">
-            <Star className="w-3 h-3 fill-[#FF7A18] text-[#FF7A18]" />
-            {food.rating}
-          </div>
-        )}
         {outOfStock ? (
           <div className="absolute bottom-3 left-3 rounded-full bg-red-600 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white shadow-sm">
             Out of Stock
@@ -83,55 +69,40 @@ const FoodCard = ({
         ) : null}
       </div>
 
-      {/* Content Section */}
-      <div className="p-4 space-y-3">
-        {/* Restaurant/Shop Name (if available) */}
-        {food.shopName && (
+      <div className="flex flex-1 flex-col p-4 space-y-3">
+        {food.shopName ? (
           <p className="text-xs font-medium text-[#777]">
             {lang === "hi" ? food.shopNameHi || food.shopName : food.shopName}
           </p>
-        )}
+        ) : null}
 
-        {/* Item Name */}
-        <div>
+        <div className="min-w-0">
           <h3 className="text-sm font-bold text-[#1A1A1A] line-clamp-2">
-            {lang === "hi" ? food.nameHi || food.name : food.name}
+            {name}
           </h3>
+          {food.description ? (
+            <p className="mt-1 text-xs text-[#777] line-clamp-2">
+              {lang === "hi" ? food.descriptionHi || food.description : food.description}
+            </p>
+          ) : null}
         </div>
 
-        {/* Description */}
-        {food.description && (
-          <p className="text-xs text-[#777] line-clamp-2">
-            {lang === "hi"
-              ? food.descriptionHi || food.description
-              : food.description}
-          </p>
-        )}
-
-        {/* Rating and Reviews */}
-        <div className="flex items-center justify-between">
-          {food.rating && (
-            <div className="flex items-center gap-1">
-              <Star className="w-3.5 h-3.5 fill-[#FF7A18] text-[#FF7A18]" />
-              <span className="text-xs font-semibold text-[#1A1A1A]">
-                {food.rating}
-              </span>
-              {food.reviews && (
-                <span className="text-xs text-[#777]">
-                  ({food.reviews})
-                </span>
-              )}
-            </div>
-          )}
-          {food.deliveryTime && (
-            <span className="text-xs text-[#777]">
-              {food.deliveryTime}
-            </span>
-          )}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1">
+            {food.rating ? (
+              <>
+                <Star className="w-3.5 h-3.5 fill-[#FF7A18] text-[#FF7A18]" />
+                <span className="text-xs font-semibold text-[#1A1A1A]">{food.rating}</span>
+                {food.reviews ? <span className="text-xs text-[#777]">({food.reviews})</span> : null}
+              </>
+            ) : (
+              <span className="text-xs text-[#777]">Fresh pick</span>
+            )}
+          </div>
+          {food.deliveryTime ? <span className="text-xs text-[#777]">{food.deliveryTime}</span> : null}
         </div>
 
-        {/* Price Section */}
-        <div className="flex items-baseline gap-2">
+        <div className="flex flex-wrap items-baseline gap-2">
           <span className="text-lg font-bold text-[#1A1A1A]">
             {food.price ? formatPrice(food.price) : "Price on request"}
           </span>
@@ -142,60 +113,61 @@ const FoodCard = ({
           ) : null}
         </div>
 
-        {/* Add to Cart / Quantity Controls */}
-        {!isInCart ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (outOfStock) return;
-              onAddToCart?.(food);
-            }}
-            disabled={outOfStock}
-            className="w-full mt-3 rounded-xl font-bold py-2.5 text-sm text-white transition-all duration-300 hover:shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:shadow-none"
-            style={{
-              background: outOfStock ? "#cbd5e1" : "linear-gradient(135deg, #FF3B30, #FF7A18)",
-            }}
-          >
-            <Plus className="w-4 h-4" />
-            {outOfStock ? "Out of Stock" : t("add") || "Add"}
-          </button>
-        ) : (
-          <div className="flex items-center justify-between rounded-xl p-2 mt-3" style={{ backgroundColor: "#FFF8F2" }}>
+        <div className="mt-auto">
+          {!isInCart ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (cartQuantity === 1) {
-                  onRemoveFromCart?.(food.id);
-                } else {
-                  onDecreaseQty?.(food.id);
-                }
+                if (outOfStock) return;
+                onAddToCart?.(food);
               }}
-              className="rounded-lg p-1.5 transition hover:bg-white"
-              style={{ color: "#FF7A18" }}
-              aria-label="Decrease quantity"
-            >
-              {cartQuantity === 1 ? (
-                <Trash2 className="w-4 h-4" strokeWidth={2} />
-              ) : (
-                <Minus className="w-4 h-4" strokeWidth={2} />
-              )}
-            </button>
-            <span className="text-sm font-bold text-[#1A1A1A]">
-              {cartQuantity}
-            </span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onIncreaseQty?.(food.id);
+              disabled={outOfStock}
+              className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-white transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95 disabled:bg-slate-300 disabled:shadow-none"
+              style={{
+                background: outOfStock ? "#cbd5e1" : "linear-gradient(135deg, #FF3B30, #FF7A18)",
               }}
-              className="rounded-lg p-1.5 transition hover:bg-white"
-              style={{ color: "#FF7A18" }}
-              aria-label="Increase quantity"
             >
-              <Plus className="w-4 h-4" strokeWidth={2} />
+              <Plus className="w-4 h-4" />
+              {outOfStock ? "Out of Stock" : t("add") || "Add"}
             </button>
-          </div>
-        )}
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-xl p-2" style={{ backgroundColor: "#FFF8F2" }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (cartQuantity === 1) {
+                      onRemoveFromCart?.(food.id);
+                    } else {
+                      onDecreaseQty?.(food.id);
+                    }
+                  }}
+                  className="rounded-lg p-1.5 transition hover:bg-white"
+                  style={{ color: "#FF7A18" }}
+                  aria-label="Decrease quantity"
+                >
+                  {cartQuantity === 1 ? (
+                    <Trash2 className="w-4 h-4" strokeWidth={2} />
+                  ) : (
+                    <Minus className="w-4 h-4" strokeWidth={2} />
+                  )}
+                </button>
+                <span className="text-sm font-bold text-[#1A1A1A]">{cartQuantity}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onIncreaseQty?.(food.id);
+                  }}
+                  className="rounded-lg p-1.5 transition hover:bg-white"
+                  style={{ color: "#FF7A18" }}
+                  aria-label="Increase quantity"
+                >
+                  <Plus className="w-4 h-4" strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -12,7 +12,14 @@ const toNumber = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-export const getApiBaseUrl = () => readEnv("VITE_API_URL", "http://localhost:5000/api");
+const normalizeUrl = (url = "") => String(url).replace(/\/+$/, "");
+const normalizeApiBaseUrl = (url = "") => {
+  const trimmed = normalizeUrl(url);
+  if (!trimmed) return "";
+  return trimmed.replace(/\/api$/, "");
+};
+
+export const getApiBaseUrl = () => normalizeApiBaseUrl(readEnv("VITE_API_URL", "https://apnagaon-backend.onrender.com"));
 export const getSupportPhone = () => readEnv("VITE_SUPPORT_PHONE", "9876543210");
 export const getWhatsAppNumber = () => readEnv("VITE_WHATSAPP_NUMBER", "918004710164");
 export const getDefaultDeliveryEtaMinutes = () => toNumber(readEnv("VITE_DEFAULT_DELIVERY_ETA_MINUTES", "20"), 20);

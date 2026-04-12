@@ -18,6 +18,7 @@ import { getApplicableRewards, getRewardById, removeExpiredRewards, rewardWallet
 import { getDirectWhatsAppLink, getWhatsAppLink, safeGenerateMessage } from "../utils/whatsappUtils";
 import { getSeedProducts, getSeedServices } from "../data/seed-data";
 import { useLocationIntelligence } from "../utils/locationHelper";
+import { loadCatalogProducts, loadCatalogServices, normalizeCatalogProduct, normalizeCatalogService } from "../utils/catalogApi";
 
 const BASE_DELIVERY_FEE = 0;
 
@@ -39,11 +40,11 @@ const normalizeRecommendation = (product) => ({
   quantity: 1,
 });
 
-const getQuickEssentials = () => {
-  const products = getSeedProducts();
+  const getQuickEssentials = (products = []) => {
+  const sourceProducts = Array.isArray(products) && products.length > 0 ? products : getSeedProducts().map(normalizeCatalogProduct);
   const names = ["Milk", "Bread", "Tea", "Cold Drink", "Eggs"];
   const matched = names
-    .map((name) => products.find((item) => String(item.name).toLowerCase().includes(name.toLowerCase())))
+    .map((name) => sourceProducts.find((item) => String(item.name).toLowerCase().includes(name.toLowerCase())))
     .filter(Boolean);
 
   const fallbacks = [
@@ -67,6 +68,8 @@ const CartPage = () => {
   const [activeTab, setActiveTab] = useState("grocery");
   const [applicableRewards, setApplicableRewards] = useState([]);
   const [selectedRewardId, setSelectedRewardId] = useState(null);
+  const [catalogProducts, setCatalogProducts] = useState([]);
+  const [catalogServices, setCatalogServices] = useState([]);
   const locationIntelligence = useLocationIntelligence();
 
   const groceryItems = useMemo(() => (Array.isArray(cart) ? cart.filter((item) => !isServiceCartItem(item)) : []), [cart]);
@@ -75,12 +78,13 @@ const CartPage = () => {
   const deliveryVillage = locationIntelligence.location?.name || user?.village || "Azampur";
   const deliveryEstimate = locationIntelligence.deliveryEstimate;
   const nearbyProducts = useMemo(() => {
-    if (!locationIntelligence.nearbyShops.length) return getSeedProducts().slice(0, 8).map(normalizeRecommendation);
+    const sourceProducts = catalogProducts.length > 0 ? catalogProducts : getSeedProducts().map(normalizeCatalogProduct);
+    if (!locationIntelligence.nearbyShops.length) return sourceProducts.slice(0, 8).map(normalizeRecommendation);
     const groceryNearby = locationIntelligence.nearbyShops.some((shop) => ["grocery", "dairy", "vegetables"].includes(shop.category));
-    return getSeedProducts()
+    return sourceProducts
       .slice(groceryNearby ? 0 : 8, groceryNearby ? 8 : 16)
       .map(normalizeRecommendation);
-  }, [locationIntelligence.nearbyShops]);
+  }, [catalogProducts, locationIntelligence.nearbyShops]);
 
   useEffect(() => {
     const syncRewards = () => {
@@ -123,8 +127,11 @@ const CartPage = () => {
     return applyRewardToCart(groceryItems, selectedReward, { subtotal, deliveryFee: BASE_DELIVERY_FEE });
   }, [groceryItems, selectedReward, subtotal]);
 
-  const quickEssentials = useMemo(() => getQuickEssentials(), []);
-  const suggestedServices = useMemo(() => getSeedServices().slice(0, 3), []);
+  const quickEssentials = useMemo(() => getQuickEssentials(catalogProducts), [catalogProducts]);
+  const suggestedServices = useMemo(() => {
+    const sourceServices = catalogServices.length > 0 ? catalogServices : getSeedServices().map(normalizeCatalogService);
+    return sourceServices.slice(0, 3);
+  }, [catalogServices]);
   const flashMessage = location.state?.flashMessage || "";
 
   const handleDecrease = (item) => {
@@ -165,6 +172,27 @@ const CartPage = () => {
     const link = getWhatsAppLink("Namaste, mujhe order place karne mein help chahiye.");
     if (link && link !== "javascript:void(0)") window.open(link, "_blank", "noopener,noreferrer");
   };
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCatalog = async () => {
+      const [nextProducts, nextServices] = await Promise.all([
+        loadCatalogProducts(),
+        loadCatalogServices(),
+      ]);
+
+      if (!active) return;
+      setCatalogProducts(Array.isArray(nextProducts) ? nextProducts : []);
+      setCatalogServices(Array.isArray(nextServices) ? nextServices : []);
+    };
+
+    loadCatalog();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-orange-50/50 to-slate-50 pb-28">

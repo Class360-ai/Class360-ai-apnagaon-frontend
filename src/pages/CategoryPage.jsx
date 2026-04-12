@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ChevronLeft, Phone, MessageCircle } from "lucide-react";
 import Header from "../components/Header";
@@ -12,6 +12,7 @@ import { getProductsByCategory, getProductsBySubcategory, getServicesByCategory,
 import { safeGenerateMessage, getWhatsAppLink, getDirectWhatsAppLink } from "../utils/whatsappUtils";
 import { useUser } from "../context/UserContext";
 import { CATEGORY_TYPES } from "../data/categories";
+import { loadCatalogProducts, loadCatalogServices, normalizeCatalogProduct, normalizeCatalogService } from "../utils/catalogApi";
 
 const CategoryPage = () => {
   const { slug } = useParams();
@@ -19,24 +20,74 @@ const CategoryPage = () => {
   const navigate = useNavigate();
   const { addToCart, isProductInCart, cart, updateQuantity } = useCart();
   const { user } = useUser();
+  const [catalogProducts, setCatalogProducts] = useState([]);
+  const [catalogServices, setCatalogServices] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const category = getCategoryBySlug(slug);
   const isProduct = category?.type === CATEGORY_TYPES.PRODUCT;
-  
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCatalog = async () => {
+      try {
+        setLoading(true);
+        const [nextProducts, nextServices] = await Promise.all([
+          loadCatalogProducts(),
+          loadCatalogServices(),
+        ]);
+        if (!active) return;
+        setCatalogProducts(Array.isArray(nextProducts) ? nextProducts : []);
+        setCatalogServices(Array.isArray(nextServices) ? nextServices : []);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadCatalog();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Check if this is a subcategory (for food subcategories)
-  let items = [];
-  if (isProduct) {
-    // First try to get by subcategory
-    const subcategoryItems = getProductsBySubcategory(slug);
-    if (subcategoryItems.length > 0) {
-      items = subcategoryItems;
-    } else {
-      // Fall back to category
-      items = getProductsByCategory(slug);
+  const items = useMemo(() => {
+    if (isProduct) {
+      const liveMatches = catalogProducts.filter((item) => {
+        const haystack = [item.category, item.categoryName, item.name, item.description]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(String(slug || "").toLowerCase());
+      });
+      if (liveMatches.length > 0) {
+        return liveMatches;
+      }
+
+      const subcategoryItems = getProductsBySubcategory(slug).map(normalizeCatalogProduct);
+      if (subcategoryItems.length > 0) {
+        return subcategoryItems;
+      }
+
+      return getProductsByCategory(slug).map(normalizeCatalogProduct);
     }
-  } else {
-    items = getServicesByCategory(slug);
-  }
+
+    const liveMatches = catalogServices.filter((item) => {
+      const haystack = [item.category, item.categoryName, item.name, item.description, item.area]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(String(slug || "").toLowerCase());
+    });
+
+    if (liveMatches.length > 0) {
+      return liveMatches;
+    }
+
+    return getServicesByCategory(slug).map(normalizeCatalogService);
+  }, [catalogProducts, catalogServices, isProduct, slug]);
 
   const targetedOffers = getOffersByCategory(slug);
   const offers = targetedOffers.length > 0 ? targetedOffers : getSeasonalOffers().slice(0, 2);
@@ -142,6 +193,9 @@ const CategoryPage = () => {
           <h1 className="text-lg font-bold">
             {lang === "hi" ? category.nameHi : category.name}
           </h1>
+          {loading ? (
+            <p className="text-xs text-slate-500">{lang === "hi" ? "कैटलॉग लोड हो रहा है..." : "Loading catalog..."}</p>
+          ) : null}
         </div>
       </div>
 
@@ -164,7 +218,7 @@ const CategoryPage = () => {
             <div className="grid gap-3">
               {offers.map((offer) => (
                 <button
-                  key={offer.id}
+                  key={offer.id || offer._id}
                   onClick={() => navigate(offer.link || "/")}
                   className="w-full rounded-3xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md"
                   type="button"
@@ -202,7 +256,7 @@ const CategoryPage = () => {
               <div className="grid grid-cols-2 gap-3">
                 {items.map((product) => (
                   <ProductCard
-                    key={product.id}
+                    key={product.id || product._id}
                     product={product}
                     isInCart={isProductInCart(product.id)}
                     cartQuantity={cart.find((item) => item.id === product.id)?.quantity || 0}
@@ -220,7 +274,7 @@ const CategoryPage = () => {
               <div className="grid grid-cols-1 gap-3">
                 {items.map((service) => (
                   <ServiceCard
-                    key={service.id}
+                    key={service.id || service._id}
                     service={service}
                     onWhatsAppClick={handleServiceWhatsApp}
                     onCallClick={handleServiceCall}

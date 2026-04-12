@@ -12,8 +12,8 @@ const seedDemoUsers = async () => {
   const count = await User.countDocuments();
   if (count) return;
   await User.create([
-    { name: "ApnaGaon Admin", email: "admin@apnagaon.local", phone: "9876543210", role: "admin", passwordHash: User.hashPassword("admin123") },
-    { name: "Shop Partner", email: "shop@apnagaon.local", phone: "9876543211", role: "shop", passwordHash: User.hashPassword("shop123") },
+    { name: "ApnaGaon Owner", email: "admin@apnagaon.local", phone: "9876543210", role: "owner", passwordHash: User.hashPassword("admin123") },
+    { name: "Shop Admin", email: "shop@apnagaon.local", phone: "9876543211", role: "shop_admin", passwordHash: User.hashPassword("shop123") },
     { name: "Delivery Rider", email: "rider@apnagaon.local", phone: "9876543212", role: "rider", passwordHash: User.hashPassword("rider123") },
     { name: "Delivery Partner", email: "delivery@apnagaon.local", phone: "9876543213", role: "delivery", passwordHash: User.hashPassword("delivery123") },
   ]);
@@ -91,7 +91,7 @@ router.post("/logout", requireAuth, (req, res) => {
   return res.json({ ok: true });
 });
 
-router.get("/users", requireAuth, roleCheck("admin"), async (req, res) => {
+router.get("/users", requireAuth, roleCheck("owner"), async (req, res) => {
   const users = await User.find({}).select("-passwordHash").sort({ createdAt: -1 }).limit(100);
   return res.json(users);
 });

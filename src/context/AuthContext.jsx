@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { AUTH_STORAGE_KEY, authAPI, safeFetch } from "../utils/api";
+import { AUTH_STORAGE_KEY, authAPI, clearAuthToken, safeFetch, setAuthToken } from "../utils/api";
 import { AuthContext } from "./authContextValue";
 import { getRoleHomePath, normalizeRole } from "../utils/roleUtils";
 
@@ -16,6 +16,7 @@ const readAuth = () => {
 const writeAuth = (auth) => {
   try {
     window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
+    setAuthToken(auth?.token || "");
   } catch {
     // Auth still works in memory.
   }
@@ -83,6 +84,7 @@ export const AuthProvider = ({ children }) => {
     const empty = { token: "", user: null };
     setAuth(empty);
     writeAuth(empty);
+    clearAuthToken();
   };
 
   const value = useMemo(

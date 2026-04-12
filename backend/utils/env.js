@@ -12,8 +12,28 @@ const getEnv = (key, fallback = "") => {
 };
 
 const getCorsOrigins = () => {
-  const origin = getEnv("CORS_ORIGIN", "*");
-  return origin === "*" ? ["*"] : parseList(origin, [origin]);
+  const origins = [
+    ...parseList(getEnv("CORS_ORIGIN", ""), []),
+    ...parseList(getEnv("FRONTEND_URL", ""), []),
+  ].filter(Boolean);
+
+  if (!origins.length) {
+    return ["*", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175"];
+  }
+
+  if (origins.includes("*")) {
+    return ["*", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://127.0.0.1:5175"];
+  }
+
+  return [...new Set([
+    ...origins,
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
+  ])];
 };
 
 module.exports = {

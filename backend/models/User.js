@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, default: "", trim: true, index: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, default: "" },
-    role: { type: String, enum: ["customer", "admin", "shop", "rider", "delivery"], default: "customer" },
+    role: { type: String, enum: ["customer", "admin", "owner", "shop", "shop_admin", "rider", "delivery"], default: "customer" },
     shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", default: null },
     available: { type: Boolean, default: true },
     addresses: [{ type: mongoose.Schema.Types.ObjectId, ref: "Address" }],

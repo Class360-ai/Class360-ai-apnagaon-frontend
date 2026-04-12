@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   MessageCircle,
@@ -19,6 +19,7 @@ import useTranslation from "../utils/useTranslation";
 import { useCart } from "../context/CartContext";
 import { useUser } from "../context/UserContext";
 import { getProductsByCategory } from "../data/seed-data";
+import { loadCatalogProducts, normalizeCatalogProduct } from "../utils/catalogApi";
 import { safeGenerateMessage, getWhatsAppLink } from "../utils/whatsappUtils";
 
 // Food subcategories for chips
@@ -89,13 +90,53 @@ const FoodPage = () => {
   const { user } = useUser();
 
   const [activeCategory, setActiveCategory] = useState("all");
+  const [foodProducts, setFoodProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const cartItems = cart || [];
 
-  // Get food products
-  const allFoodProducts = getProductsByCategory("food");
+  useEffect(() => {
+    let active = true;
+
+    const loadFoodProducts = async () => {
+      try {
+        setLoading(true);
+        const catalogProducts = await loadCatalogProducts();
+        if (!active) return;
+
+        const liveFood = Array.isArray(catalogProducts)
+          ? catalogProducts.filter((product) => String(product.category || "").toLowerCase().includes("food"))
+          : [];
+        const fallbackFood = getProductsByCategory("food").map(normalizeCatalogProduct);
+        setFoodProducts(liveFood.length > 0 ? liveFood : fallbackFood);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadFoodProducts();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const allFoodProducts = useMemo(() => {
+    const source = Array.isArray(foodProducts) && foodProducts.length > 0
+      ? foodProducts
+      : getProductsByCategory("food").map(normalizeCatalogProduct);
+
+    const unique = new Map();
+    source.filter(Boolean).forEach((product) => {
+      const id = product.id || product._id || product.name;
+      if (!id || unique.has(String(id))) return;
+      unique.set(String(id), product);
+    });
+    return Array.from(unique.values());
+  }, [foodProducts]);
   const popularItems = allFoodProducts.slice(0, 6);
-  const todaySpecials = allFoodProducts.filter(product => product.discount > 15).slice(0, 6);
+  const discountedItems = allFoodProducts.filter((product) => Number(product.discount) > 15);
+  const todaySpecials = (discountedItems.length > 0 ? discountedItems : allFoodProducts).slice(0, 6);
 
   const handleCategoryClick = (categoryId) => {
     if (categoryId === "all") {
@@ -147,9 +188,7 @@ Items: ${combo.items.join(", ")}
 Price: ₹${combo.price}
 
 Please confirm availability.`;
-    const encodedMessage = encodeURIComponent(message);
-    const businessNumber = "918004710164";
-    const whatsappUrl = `https://wa.me/${businessNumber}?text=${encodedMessage}`;
+    const whatsappUrl = getWhatsAppLink(message);
     window.open(whatsappUrl, "_blank");
   };
 
@@ -222,6 +261,14 @@ Please confirm availability.`;
 
       <div id="menu-section" className="h-4"></div>
 
+      {loading ? (
+        <div className="px-4">
+          <div className="rounded-[22px] bg-white px-4 py-3 text-sm font-semibold text-slate-500 shadow-sm ring-1 ring-slate-100">
+            {lang === "hi" ? "लाइव मेनू लोड हो रहा है..." : "Loading live menu..."}
+          </div>
+        </div>
+      ) : null}
+
       {/* Food Category Chips */}
       <div className="px-4 py-6">
         <div className="flex items-center justify-between mb-4">
@@ -287,7 +334,7 @@ Please confirm availability.`;
         <div className="grid grid-cols-2 gap-4">
           {popularItems.map((product) => (
             <FoodCard
-              key={product.id}
+            key={product.id || product._id}
               food={product}
               isInCart={getCartQuantity(product.id) > 0}
               cartQuantity={getCartQuantity(product.id)}
@@ -317,7 +364,7 @@ Please confirm availability.`;
 
         <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide">
           {todaySpecials.map((product) => (
-            <div key={product.id} className="snap-center flex-shrink-0 w-64">
+            <div key={product.id || product._id} className="snap-center flex-shrink-0 w-64">
               <FoodCard
                 food={product}
                 isInCart={getCartQuantity(product.id) > 0}
@@ -699,7 +746,7 @@ Please confirm availability.`;
       {/* Floating WhatsApp Button */}
       <div className="fixed bottom-20 right-4 z-50">
         <button
-          onClick={() => window.open(`https://wa.me/918004710164?text=${encodeURIComponent(lang === "hi" ? "नमस्ते! मैं ApnaGaon से ऑर्डर करना चाहता हूं।" : "Hello! I want to order from ApnaGaon.")}`, "_blank")}
+          onClick={() => window.open(getWhatsAppLink(lang === "hi" ? "नमस्ते! मैं ApnaGaon से ऑर्डर करना चाहता हूं।" : "Hello! I want to order from ApnaGaon."), "_blank")}
           className="w-14 h-14 rounded-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-green-500/50 flex items-center justify-center animate-bounce"
         >
           <MessageCircle className="w-6 h-6" />

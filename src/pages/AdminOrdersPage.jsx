@@ -48,16 +48,28 @@ const AdminOrdersPage = () => {
   const [orders, setOrders] = useState([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [search, setSearch] = useState("");
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
-      const backendOrders = await safeFetch(async () => toOrderArray(await ordersAPI.getAll()), null);
+      let backendOrders = null;
+      try {
+        backendOrders = toOrderArray(await ordersAPI.getAll());
+      } catch (fetchError) {
+        console.warn("[ApnaGaon] Failed to load backend orders:", fetchError);
+        setError(fetchError?.message || "Unable to load backend orders");
+      }
       const localOrders = getLocalOrders();
       const merged = mergeOrders(backendOrders || [], localOrders);
       setOrders(merged.length ? merged : localOrders);
+      if (!merged.length && !localOrders.length && !backendOrders?.length) {
+        setError((current) => current || "No orders available yet.");
+      }
+      if (backendOrders?.length) setError("");
     } finally {
       setLoading(false);
     }
@@ -217,6 +229,12 @@ const AdminOrdersPage = () => {
 
         {loading ? (
           <div className="rounded-[28px] bg-white p-5 text-sm font-bold text-slate-500 shadow-sm ring-1 ring-slate-100">Loading orders...</div>
+        ) : null}
+
+        {!loading && error ? (
+          <div className="rounded-[28px] bg-white p-5 text-sm font-bold text-rose-600 shadow-sm ring-1 ring-rose-100">
+            {error}
+          </div>
         ) : null}
 
         {!loading && !visibleOrders.length ? (

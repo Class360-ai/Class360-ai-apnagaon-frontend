@@ -62,7 +62,7 @@
 
 .ag-spin-wheel-stage {
   position: relative;
-  width: min(304px, calc(100vw - 68px));
+  width: min(304px, calc(100% - 68px));
   aspect-ratio: 1;
   margin: 0 auto;
   filter: drop-shadow(0 12px 20px rgba(15, 23, 42, 0.2));
@@ -290,7 +290,7 @@
 
 @media (max-width: 360px) {
   .ag-spin-wheel-stage {
-    width: min(284px, calc(100vw - 56px));
+    width: min(284px, calc(100% - 56px));
   }
 
   .ag-wheel-label {

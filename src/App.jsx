@@ -100,7 +100,7 @@ function App() {
                 <Route path="/checkout/payment" element={<CheckoutPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/orders" element={<OrderHistoryPage />} />
-                <Route path="/my-orders" element={<ProtectedRoute roles={["customer", "admin"]}><OrderHistoryPage /></ProtectedRoute>} />
+                <Route path="/my-orders" element={<ProtectedRoute roles={["customer", "owner"]}><OrderHistoryPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/help" element={<HelpPage />} />
@@ -126,31 +126,43 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/access-denied" element={<AccessDeniedPage />} />
-                <Route path="/admin/dashboard" element={<ProtectedRoute roles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
-                <Route path="/admin/orders" element={<ProtectedRoute roles={["admin"]}><AdminOrdersPage /></ProtectedRoute>} />
-                <Route path="/admin/delivery" element={<ProtectedRoute roles={["admin"]}><AdminDeliveryPage /></ProtectedRoute>} />
-                <Route path="/admin/delivery/orders" element={<ProtectedRoute roles={["admin"]}><AdminDeliveryPage /></ProtectedRoute>} />
-                <Route path="/admin/shops/applications" element={<ProtectedRoute roles={["admin"]}><AdminShopApplicationsPage /></ProtectedRoute>} />
-                <Route path="/admin/shops" element={<ProtectedRoute roles={["admin"]}><AdminShopsPage /></ProtectedRoute>} />
-                <Route path="/admin/users" element={<ProtectedRoute roles={["admin"]}><AdminUsersPage /></ProtectedRoute>} />
-                <Route path="/admin/partners" element={<ProtectedRoute roles={["admin"]}><AdminPartnersPage /></ProtectedRoute>} />
-                <Route path="/admin/analytics" element={<ProtectedRoute roles={["admin"]}><AdminAnalyticsPage /></ProtectedRoute>} />
-                <Route path="/admin/products" element={<ProtectedRoute roles={["admin"]}><AdminProductsPage /></ProtectedRoute>} />
-                <Route path="/admin/categories" element={<ProtectedRoute roles={["admin"]}><AdminCategoriesPage /></ProtectedRoute>} />
-                <Route path="/admin/offers" element={<ProtectedRoute roles={["admin"]}><AdminOffersPage /></ProtectedRoute>} />
-                <Route path="/admin/services" element={<ProtectedRoute roles={["admin"]}><AdminServicesPage /></ProtectedRoute>} />
-                <Route path="/admin/launch-checklist" element={<ProtectedRoute roles={["admin"]}><AdminLaunchChecklistPage /></ProtectedRoute>} />
-                <Route path="/shop/dashboard" element={<ProtectedRoute roles={["shop", "admin"]}><ShopDashboard /></ProtectedRoute>} />
-                <Route path="/shop/products" element={<ProtectedRoute roles={["shop", "admin"]}><ShopDashboard /></ProtectedRoute>} />
-                <Route path="/shop/orders" element={<ProtectedRoute roles={["shop", "admin"]}><ShopDashboard /></ProtectedRoute>} />
-                <Route path="/shop/offers" element={<ProtectedRoute roles={["shop", "admin"]}><ShopDashboard /></ProtectedRoute>} />
-                <Route path="/delivery/dashboard" element={<ProtectedRoute roles={["delivery", "admin"]}><DeliveryDashboard /></ProtectedRoute>} />
-                <Route path="/delivery/orders" element={<ProtectedRoute roles={["delivery", "admin"]}><DeliveryOrdersPage /></ProtectedRoute>} />
-                <Route path="/delivery/order/:id" element={<ProtectedRoute roles={["delivery", "admin"]}><DeliveryOrderDetailPage /></ProtectedRoute>} />
-                <Route path="/delivery/profile" element={<ProtectedRoute roles={["delivery", "admin"]}><DeliveryDashboard /></ProtectedRoute>} />
-                <Route path="/rider/dashboard" element={<ProtectedRoute roles={["delivery", "admin"]}><DeliveryDashboard /></ProtectedRoute>} />
+                <Route path="/admin/dashboard" element={<ProtectedRoute roles={["owner"]}><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/admin/orders" element={<ProtectedRoute roles={["owner"]}><AdminOrdersPage /></ProtectedRoute>} />
+                <Route path="/test-orders" element={<ProtectedRoute roles={["owner"]}><AdminOrdersPage /></ProtectedRoute>} />
+                <Route path="/admin-order-status" element={<ProtectedRoute roles={["owner"]}><AdminOrdersPage /></ProtectedRoute>} />
+                <Route path="/admin/order-tools" element={<ProtectedRoute roles={["owner"]}><AdminOrdersPage /></ProtectedRoute>} />
+                <Route path="/admin/delivery" element={<ProtectedRoute roles={["owner"]}><AdminDeliveryPage /></ProtectedRoute>} />
+                <Route path="/admin/delivery/orders" element={<ProtectedRoute roles={["owner"]}><AdminDeliveryPage /></ProtectedRoute>} />
+                <Route path="/admin/shops/applications" element={<ProtectedRoute roles={["owner"]}><AdminShopApplicationsPage /></ProtectedRoute>} />
+                <Route path="/admin/shops" element={<ProtectedRoute roles={["owner"]}><AdminShopsPage /></ProtectedRoute>} />
+                <Route path="/admin/users" element={<ProtectedRoute roles={["owner"]}><AdminUsersPage /></ProtectedRoute>} />
+                <Route path="/admin/partners" element={<ProtectedRoute roles={["owner"]}><AdminPartnersPage /></ProtectedRoute>} />
+                <Route path="/admin/analytics" element={<ProtectedRoute roles={["owner"]}><AdminAnalyticsPage /></ProtectedRoute>} />
+                <Route path="/admin/products" element={<ProtectedRoute roles={["owner"]}><AdminProductsPage /></ProtectedRoute>} />
+                <Route path="/admin/categories" element={<ProtectedRoute roles={["owner"]}><AdminCategoriesPage /></ProtectedRoute>} />
+                <Route path="/admin/offers" element={<ProtectedRoute roles={["owner"]}><AdminOffersPage /></ProtectedRoute>} />
+                <Route path="/admin/services" element={<ProtectedRoute roles={["owner"]}><AdminServicesPage /></ProtectedRoute>} />
+                <Route path="/admin/launch-checklist" element={<ProtectedRoute roles={["owner"]}><AdminLaunchChecklistPage /></ProtectedRoute>} />
+                <Route path="/owner/dashboard" element={<ProtectedRoute roles={["owner"]}><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/owner/orders" element={<ProtectedRoute roles={["owner"]}><AdminOrdersPage /></ProtectedRoute>} />
+                <Route path="/owner/products" element={<ProtectedRoute roles={["owner"]}><AdminProductsPage /></ProtectedRoute>} />
+                <Route path="/owner/shops" element={<ProtectedRoute roles={["owner"]}><AdminShopsPage /></ProtectedRoute>} />
+                <Route path="/owner/analytics" element={<ProtectedRoute roles={["owner"]}><AdminAnalyticsPage /></ProtectedRoute>} />
+                <Route path="/owner/users" element={<ProtectedRoute roles={["owner"]}><AdminUsersPage /></ProtectedRoute>} />
+                <Route path="/shop/dashboard" element={<ProtectedRoute roles={["shop_admin", "owner"]}><ShopDashboard /></ProtectedRoute>} />
+                <Route path="/shop/products" element={<ProtectedRoute roles={["shop_admin", "owner"]}><ShopDashboard /></ProtectedRoute>} />
+                <Route path="/shop/orders" element={<ProtectedRoute roles={["shop_admin", "owner"]}><ShopDashboard /></ProtectedRoute>} />
+                <Route path="/shop/offers" element={<ProtectedRoute roles={["shop_admin", "owner"]}><ShopDashboard /></ProtectedRoute>} />
+                <Route path="/delivery/dashboard" element={<ProtectedRoute roles={["delivery", "owner"]}><DeliveryDashboard /></ProtectedRoute>} />
+                <Route path="/delivery/orders" element={<ProtectedRoute roles={["delivery", "owner"]}><DeliveryOrdersPage /></ProtectedRoute>} />
+                <Route path="/delivery/order/:id" element={<ProtectedRoute roles={["delivery", "owner"]}><DeliveryOrderDetailPage /></ProtectedRoute>} />
+                <Route path="/delivery/profile" element={<ProtectedRoute roles={["delivery", "owner"]}><DeliveryDashboard /></ProtectedRoute>} />
+                <Route path="/rider/dashboard" element={<ProtectedRoute roles={["delivery", "owner"]}><DeliveryDashboard /></ProtectedRoute>} />
 
                 {/* Category Routes */}
+                <Route path="/admin" element={<ProtectedRoute roles={["owner"]}><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/admin-products" element={<ProtectedRoute roles={["owner"]}><AdminProductsPage /></ProtectedRoute>} />
+                <Route path="/admin-orders" element={<ProtectedRoute roles={["owner"]}><AdminOrdersPage /></ProtectedRoute>} />
                 <Route path="/:slug" element={<CategoryPage />} />
 
                 {/* 404 Route */}

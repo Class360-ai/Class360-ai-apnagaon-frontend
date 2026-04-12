@@ -1,11 +1,12 @@
 import React from "react";
-import { Phone, Bike, MapPin } from "lucide-react";
+import { Bike, MapPin, Phone } from "lucide-react";
 
 const DeliveryPartnerList = ({ partners = [], selectedId = "", onSelect }) => (
   <div className="space-y-2">
     {partners.length ? (
       partners.map((partner) => {
         const active = String(selectedId) === String(partner.id);
+        const available = partner.available !== false && partner.status !== "busy";
         return (
           <button
             key={partner.id}
@@ -27,14 +28,15 @@ const DeliveryPartnerList = ({ partners = [], selectedId = "", onSelect }) => (
                   {partner.area || "Area not set"}
                 </p>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${partner.available ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
-                {partner.available ? "Available" : "Busy"}
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${available ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                {available ? "Available" : "Busy"}
               </span>
             </div>
             <div className="mt-3 flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-slate-500">
               <Bike className="h-4 w-4" />
-              {partner.vehicleType || "Bike"} · {partner.activeOrdersCount || 0} active
+              {partner.vehicleType || partner.vehicle || "Bike"} · {partner.activeOrdersCount || 0} active
             </div>
+            {partner.status ? <p className="mt-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Status: {partner.status}</p> : null}
           </button>
         );
       })

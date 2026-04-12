@@ -5,6 +5,8 @@ export const ORDER_UPDATED_EVENT = "apnagaon:order-updated";
 
 export const ORDER_STATUSES = ["placed", "confirmed", "preparing", "assigned", "picked_up", "on_the_way", "out_for_delivery", "delivered", "failed_delivery", "cancelled"];
 
+export const TRACKING_FLOW = ["placed", "confirmed", "preparing", "out_for_delivery", "delivered"];
+
 export const ORDER_STATUS_META = {
   placed: { label: "Placed", note: "Order placed", tone: "emerald" },
   confirmed: { label: "Confirmed", note: "Shop confirmed your order", tone: "blue" },
@@ -17,6 +19,16 @@ export const ORDER_STATUS_META = {
   failed_delivery: { label: "Failed", note: "Delivery attempt failed", tone: "red" },
   cancelled: { label: "Cancelled", note: "Order cancelled", tone: "red" },
 };
+
+export const resolveTrackingStatus = (status) => {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (TRACKING_FLOW.includes(normalized)) return normalized;
+  if (["assigned", "picked_up", "on_the_way"].includes(normalized)) return "out_for_delivery";
+  if (normalized === "cancelled" || normalized === "failed_delivery") return "placed";
+  return "placed";
+};
+
+export const getTrackingStepIndex = (status) => TRACKING_FLOW.indexOf(resolveTrackingStatus(status));
 
 const hasStorage = () => typeof window !== "undefined" && Boolean(window.localStorage);
 

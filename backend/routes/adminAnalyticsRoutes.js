@@ -36,7 +36,7 @@ const countMapToTopList = (map, limit = 5) =>
     .slice(0, limit)
     .map(([name, stats]) => ({ name, ...stats }));
 
-router.get("/", requireAuth, roleCheck("admin"), async (req, res) => {
+router.get("/", requireAuth, roleCheck("owner"), async (req, res) => {
   const [orders, partners, servicePartners, products, users, addresses] = await Promise.all([
     Order.find({}).sort({ createdAt: -1 }).limit(500),
     Partner.find({}).limit(500),

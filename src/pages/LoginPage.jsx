@@ -5,8 +5,8 @@ import { useAuth } from "../context/useAuth";
 import { getRoleHomePath, getRoleLabel, normalizeRole } from "../utils/roleUtils";
 
 const staffAccounts = [
-  { role: "Super Admin", email: "admin@apnagaon.local", password: "admin123", path: "/admin/dashboard" },
-  { role: "Shop Owner", email: "shop@apnagaon.local", password: "shop123", path: "/shop/dashboard" },
+  { role: "Owner", email: "admin@apnagaon.local", password: "admin123", path: "/owner/dashboard" },
+  { role: "Shop Admin", email: "shop@apnagaon.local", password: "shop123", path: "/shop/dashboard" },
   { role: "Delivery Partner", email: "rider@apnagaon.local", password: "rider123", path: "/delivery/dashboard" },
 ];
 
@@ -68,7 +68,7 @@ const LoginPage = () => {
       return;
     }
 
-    navigate(redirectPath || "/profile", { replace: true });
+    navigate("/admin/dashboard", { replace: true });
   };
 
   const submitStaff = async (event) => {
@@ -81,7 +81,7 @@ const LoginPage = () => {
       setMessage(result.message);
       return;
     }
-    navigate(fallbackPathForRole(result.user?.role), { replace: true });
+    navigate("/admin/dashboard", { replace: true });
   };
 
   return (
@@ -169,7 +169,7 @@ const LoginPage = () => {
               disabled={loading}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-4 text-sm font-black text-white shadow-lg shadow-emerald-100 transition active:scale-[0.99] disabled:bg-emerald-300"
             >
-              {loading ? "Please wait..." : customerView === "register" ? "Create Account" : "Login"}
+              {loading ? "Please wait..." : "Login"}
               {!loading ? <ArrowRight className="h-4 w-4" /> : null}
             </button>
 

@@ -5,9 +5,17 @@ import { getApiBaseUrl } from "./runtimeConfig";
 
 const API_BASE_URL = getApiBaseUrl();
 export const AUTH_STORAGE_KEY = "apnagaon_auth_v1";
+export const TOKEN_STORAGE_KEY = "token";
+const REQUEST_TIMEOUT_MS = 15000;
+
+if (typeof import.meta !== "undefined" && import.meta.env?.DEV) {
+  console.info("[ApnaGaon] API base URL:", API_BASE_URL);
+}
 
 export const getAuthToken = () => {
   try {
+    const directToken = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (directToken) return directToken;
     const saved = window.localStorage.getItem(AUTH_STORAGE_KEY);
     return saved ? JSON.parse(saved)?.token || "" : "";
   } catch {
@@ -15,9 +23,34 @@ export const getAuthToken = () => {
   }
 };
 
+export const setAuthToken = (token = "") => {
+  try {
+    if (token) {
+      window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // ignore storage failures
+  }
+};
+
+export const clearAuthToken = () => {
+  setAuthToken("");
+};
+
 // Helper function to make API calls
 const apiCall = async (endpoint, options = {}) => {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const normalizedEndpoint = endpoint.startsWith("/api/")
+    ? endpoint
+    : endpoint.startsWith("/api")
+      ? endpoint
+      : `/api${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  const url = `${API_BASE_URL}${normalizedEndpoint}`;
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller
+    ? window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    : null;
   
   try {
     const response = await fetch(url, {
@@ -26,15 +59,43 @@ const apiCall = async (endpoint, options = {}) => {
         ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
         ...options.headers,
       },
+      signal: controller?.signal,
       ...options,
     });
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
     }
 
-    return await response.json();
+    if (!response.ok) {
+      let errorMessage = `API Error: ${response.status}`;
+      try {
+        const errorBody = await response.json();
+        errorMessage = errorBody?.message || errorMessage;
+      } catch {
+        try {
+          const text = await response.text();
+          if (text) errorMessage = text;
+        } catch {
+          // ignore text parse errors
+        }
+      }
+      throw new Error(errorMessage);
+    }
+
+    if (response.status === 204) {
+      return null;
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+    return await response.text();
   } catch (error) {
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
     console.error("API call failed:", error);
     throw error;
   }
@@ -58,6 +119,14 @@ export const partnersAPI = {
   adminList: () => apiCall("/admin/partners"),
   updateStatus: (id, status, reviewNote = "") =>
     apiCall(`/admin/partners/${id}/status`, { method: "PUT", body: JSON.stringify({ status, reviewNote }) }),
+};
+
+export const deliveryPartnersAPI = {
+  getAll: () => apiCall("/delivery-partners"),
+  create: (data) => apiCall("/delivery-partners", { method: "POST", body: JSON.stringify(data) }),
+  update: (id, data) => apiCall(`/delivery-partners/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  updateStatus: (id, status) => apiCall(`/delivery-partners/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  seed: () => apiCall("/delivery-partners/seed", { method: "POST" }),
 };
 
 export const servicePartnersAPI = {
@@ -152,7 +221,7 @@ export const categoriesAPI = {
 
 // Seeds API (for development/admin)
 export const seedsAPI = {
-  seedProducts: () => apiCall("/seeds/products", { method: "POST" }),
+  seedProducts: (payload = {}) => apiCall("/seed-products", { method: "POST", body: JSON.stringify(payload) }),
   seedServices: () => apiCall("/seeds/services", { method: "POST" }),
   clearAll: () => apiCall("/seeds/clear", { method: "POST" }),
 };
@@ -162,7 +231,7 @@ export const safeFetch = async (apiFunction, fallbackData = null) => {
   try {
     return await apiFunction();
   } catch (error) {
-    console.warn("API fetch failed, using fallback data:", error);
+    console.warn("API fetch failed, using fallback data:", error?.message || error);
     return fallbackData || null;
   }
 };
@@ -180,6 +249,7 @@ export default {
   addressesAPI,
   notificationsAPI,
   partnersAPI,
+  deliveryPartnersAPI,
   servicePartnersAPI,
   analyticsAPI,
   safeFetch,

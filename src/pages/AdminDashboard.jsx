@@ -85,6 +85,8 @@ const AdminDashboard = () => {
           <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {[
               ["Orders", "/admin/orders"],
+              ["Order tools", "/admin/order-tools"],
+              ["Order status", "/admin-order-status"],
               ["Delivery", "/admin/delivery"],
               ["Shops", "/admin/shops"],
               ["Applications", "/admin/shops/applications"],

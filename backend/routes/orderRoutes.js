@@ -6,10 +6,11 @@ const roleCheck = require("../middleware/roleCheck");
 const router = express.Router();
 
 router.post("/", optionalAuth, createOrder);
-router.get("/", requireAuth, getOrders);
+router.get("/", requireAuth, roleCheck("owner", "shop_admin", "delivery"), getOrders);
 router.get("/me", requireAuth, getMyOrders);
 router.get("/:id", getOrder);
-router.put("/:id/status", requireAuth, updateOrderStatus);
-router.put("/:id/assign", requireAuth, roleCheck("admin"), assignDeliveryPartner);
+router.patch("/:id/status", requireAuth, roleCheck("owner", "shop_admin", "delivery"), updateOrderStatus);
+router.put("/:id/status", requireAuth, roleCheck("owner", "shop_admin", "delivery"), updateOrderStatus);
+router.put("/:id/assign", requireAuth, roleCheck("owner"), assignDeliveryPartner);
 
 module.exports = router;

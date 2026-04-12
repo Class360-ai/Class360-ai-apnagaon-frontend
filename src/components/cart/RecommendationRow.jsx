@@ -16,7 +16,7 @@ const RecommendationRow = ({ title, subtitle, items = [], onAddToCart }) => {
 
       <div className="flex gap-3 overflow-x-auto pb-2">
         {items.map((item) => (
-          <article key={item.id} className="w-36 flex-shrink-0 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-100">
+          <article key={item._id || item.id} className="w-36 flex-shrink-0 rounded-[22px] bg-white p-3 shadow-sm ring-1 ring-slate-100">
             <div className="mb-3 h-24 overflow-hidden rounded-[18px] bg-emerald-50">
               {item.image ? (
                 <img

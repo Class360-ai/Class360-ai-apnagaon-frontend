@@ -15,6 +15,6 @@ router.post("/", requireAuth, createPayment);
 router.get("/order/:orderId", requireAuth, getPaymentByOrderId);
 router.get("/:id", requireAuth, getPayment);
 router.post("/:id/verify", requireAuth, verifyPayment);
-router.patch("/:id/status", requireAuth, roleCheck("admin"), updatePaymentStatus);
+router.patch("/:id/status", requireAuth, roleCheck("owner"), updatePaymentStatus);
 
 module.exports = router;

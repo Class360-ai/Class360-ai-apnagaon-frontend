@@ -25,6 +25,7 @@ import todayOffers from "../data/offersData";
 import { addRewardPoints, claimDailyVisitPoints } from "../utils/rewardPoints";
 import { getActiveRewards, removeExpiredRewards, rewardWalletEvents } from "../utils/rewardWallet";
 import { useLocationIntelligence } from "../utils/locationHelper";
+import { loadCatalogProducts, normalizeCatalogProduct } from "../utils/catalogApi";
 import "./homeTopSection.css";
 
 const HomeTopSection = ({ addToCart }) => {
@@ -41,10 +42,19 @@ const HomeTopSection = ({ addToCart }) => {
   const [walletOpen, setWalletOpen] = useState(false);
   const [activeRewardCount, setActiveRewardCount] = useState(0);
   const [rewardBannerText, setRewardBannerText] = useState("");
+  const [catalogProducts, setCatalogProducts] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
   const highlightTimeoutRef = useRef(null);
   const locationIntelligence = useLocationIntelligence();
 
-  const topDeals = useMemo(() => homeTopDeals?.products || [], []);
+  const topDeals = useMemo(() => {
+    const liveProducts = Array.isArray(catalogProducts) ? catalogProducts : [];
+    if (liveProducts.length > 0) {
+      return liveProducts.slice(0, 6);
+    }
+    return (homeTopDeals?.products || []).map(normalizeCatalogProduct);
+  }, [catalogProducts]);
 
   const navigateSafe = (route) => {
     if (!route || typeof route !== "string") {
@@ -59,9 +69,9 @@ const HomeTopSection = ({ addToCart }) => {
       addToCart({
         id: product?.id || `deal-${Date.now()}`,
         name: product?.name || "ApnaGaon Item",
-        image: "",
+        image: product?.image || "",
         price: product?.price || 0,
-        unit: product?.qty || "",
+        unit: product?.unit || product?.qty || "",
       });
       setFeedback(`${tx(product?.name) || t("item")} ${t("addedToCart")}`);
       setTimeout(() => setFeedback(""), 1500);
@@ -128,6 +138,32 @@ const HomeTopSection = ({ addToCart }) => {
 
   useEffect(() => {
     claimDailyVisitPoints(10);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadTopCatalog = async () => {
+      try {
+        setCatalogLoading(true);
+        setCatalogError("");
+        const liveProducts = await loadCatalogProducts();
+        if (!active) return;
+        setCatalogProducts(Array.isArray(liveProducts) ? liveProducts : []);
+      } catch (error) {
+        if (!active) return;
+        setCatalogError(error?.message || "Failed to load live products");
+        setCatalogProducts((homeTopDeals?.products || []).map(normalizeCatalogProduct));
+      } finally {
+        if (active) setCatalogLoading(false);
+      }
+    };
+
+    loadTopCatalog();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -266,6 +302,8 @@ const HomeTopSection = ({ addToCart }) => {
           products={topDeals}
           onAdd={onAddDeal}
           onViewAll={() => navigateSafe("/categories")}
+          loading={catalogLoading}
+          error={catalogError}
         />
       </div>
 

@@ -190,12 +190,14 @@ const CheckoutPage = () => {
     };
 
     const order = await safeFetch(() => ordersAPI.create(orderPayload), null);
-    const fallbackOrder = saveLocalOrder({ ...orderPayload, ...(order || {}) });
+    const savedOrder = saveLocalOrder({ ...orderPayload, ...(order || {}) });
+    const resolvedOrderId = order?.orderId || order?.id || order?._id || savedOrder?.orderId || savedOrder?.id || savedOrder?._id || orderId;
 
     if (rewardForOrder?.id) markUsed(rewardForOrder.id);
     addRewardPoints(30);
 
-    navigate(`/order-confirmed/${fallbackOrder._id || fallbackOrder.id || "demo-order"}`);
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    navigate(`/track-order/${resolvedOrderId || "demo-order"}`);
   };
 
   const processPaymentAndOrder = async () => {

@@ -2,7 +2,7 @@ import React from "react";
 import { Clock3, Phone, ShieldCheck, ShoppingBag, Truck } from "lucide-react";
 import { formatAddressLine } from "../utils/locationHelpers";
 import { formatPrice } from "../utils/helpers";
-import { ORDER_STATUS_META } from "../utils/orderStorage";
+import { ORDER_STATUS_META, getTrackingStepIndex, resolveTrackingStatus } from "../utils/orderStorage";
 import OrderStatusBadge from "./OrderStatusBadge";
 import PaymentStatusBadge from "./checkout/PaymentStatusBadge";
 import SupportActions from "./SupportActions";
@@ -11,18 +11,14 @@ const TRACKING_STEPS = [
   { id: "placed", label: "Order Placed" },
   { id: "confirmed", label: "Confirmed" },
   { id: "preparing", label: "Preparing" },
-  { id: "assigned", label: "Assigned" },
-  { id: "picked_up", label: "Picked Up" },
-  { id: "on_the_way", label: "On the Way" },
   { id: "out_for_delivery", label: "Out for Delivery" },
   { id: "delivered", label: "Delivered" },
-  { id: "failed_delivery", label: "Failed" },
 ];
 
 const DeliveryTrackingCard = ({ order = {} }) => {
-  const stepIndex = TRACKING_STEPS.findIndex((step) => step.id === order.status);
-  const currentIndex = order.status === "cancelled" ? -1 : Math.max(0, stepIndex);
-  const statusMeta = ORDER_STATUS_META[order.status] || ORDER_STATUS_META.placed;
+  const resolvedStatus = resolveTrackingStatus(order.status);
+  const currentIndex = Math.max(0, getTrackingStepIndex(resolvedStatus));
+  const statusMeta = ORDER_STATUS_META[resolvedStatus] || ORDER_STATUS_META.placed;
   const orderId = order.orderId || order.id || order._id || "demo-order";
   const etaLabel = order.eta || `${order.etaMinutes || 30} min`;
   const totals = order.totals || {};
@@ -84,7 +80,12 @@ const DeliveryTrackingCard = ({ order = {} }) => {
           {TRACKING_STEPS.map((step, index) => {
             const active = index <= currentIndex;
             const completed = index < currentIndex;
-            const note = order.trackingSteps?.find((item) => item.status === step.id)?.note;
+            const noteCandidates = step.id === "out_for_delivery"
+              ? ["out_for_delivery", "on_the_way", "picked_up", "assigned"]
+              : [step.id];
+            const note = noteCandidates
+              .map((candidate) => order.trackingSteps?.find((item) => item.status === candidate)?.note)
+              .find(Boolean);
             return (
               <div key={step.id} className="relative flex gap-3 pb-4 last:pb-0">
                 {index < TRACKING_STEPS.length - 1 ? (
