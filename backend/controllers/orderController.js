@@ -33,6 +33,39 @@ const ALLOWED_ORDER_STATUSES = new Set([
 
 const normalizeOrderStatus = (status) => String(status || "").trim().toLowerCase();
 
+const toObject = (doc) => {
+  if (!doc) return null;
+  return typeof doc.toObject === "function" ? doc.toObject() : doc;
+};
+
+const applyOrderPopulation = (query) =>
+  query
+    .populate("riderId", "name phone vehicleType")
+    .populate("deliveryPartnerId", "name phone vehicleType");
+
+const enrichOrderWithRider = async (orderDoc) => {
+  const order = toObject(orderDoc);
+  if (!order) return null;
+
+  const riderId = order.riderId || order.deliveryPartnerId || null;
+  if (!riderId) return order;
+
+  let rider = null;
+  if (mongoose.Types.ObjectId.isValid(riderId)) {
+    rider = await DeliveryPartner.findById(riderId).lean();
+  }
+  if (rider) {
+    order.riderId = rider;
+    order.deliveryPartnerId = rider._id;
+    order.riderName = order.riderName || rider.name || "";
+    order.riderPhone = order.riderPhone || rider.phone || "";
+    order.riderVehicleType = rider.vehicleType || rider.vehicle || "";
+    order.riderStatus = rider.currentStatus || rider.status || "";
+    order.riderAvailable = rider.isAvailable ?? rider.available ?? false;
+  }
+  return order;
+};
+
 const createOrderNotification = async (order, status = "placed", note = "") => {
   if (!order?.userId) return;
   const title = order.orderId ? `Order #${order.orderId}` : "Order update";
@@ -62,7 +95,9 @@ const setDeliveryPartnerAvailability = async (deliveryPartnerId, status) => {
   const partner = mongoose.Types.ObjectId.isValid(deliveryPartnerId) ? await DeliveryPartner.findById(deliveryPartnerId) : null;
   if (partner) {
     partner.status = nextStatus;
+    partner.currentStatus = nextStatus === "available" ? "available" : "busy";
     partner.available = nextStatus === "available";
+    partner.isAvailable = nextStatus === "available";
     await partner.save();
     return;
   }
@@ -127,11 +162,13 @@ const createOrder = async (req, res) => {
 };
 
 const getOrder = async (req, res) => {
-  const order = mongoose.Types.ObjectId.isValid(req.params.id)
-    ? await Order.findById(req.params.id)
-    : await Order.findOne({ orderId: req.params.id });
+  const order = await applyOrderPopulation(
+    mongoose.Types.ObjectId.isValid(req.params.id)
+      ? Order.findById(req.params.id)
+      : Order.findOne({ orderId: req.params.id })
+  );
   if (!order) return res.status(404).json({ message: "Order not found" });
-  return res.json(order);
+  return res.json(await enrichOrderWithRider(order));
 };
 
 const getOrders = async (req, res) => {
@@ -139,13 +176,13 @@ const getOrders = async (req, res) => {
   const normalizedRole = normalizeRole(req.user?.role);
   const roleFilter = normalizedRole === "shop_admin" && req.user?.shopId ? { shopId: req.user.shopId } : {};
   const riderFilter = normalizedRole === "delivery" ? { $or: [{ riderId: req.user._id }, { deliveryPartnerId: req.user._id }] } : {};
-  const orders = await Order.find({ ...statusFilter, ...roleFilter, ...riderFilter }).sort({ createdAt: -1 }).limit(100);
-  return res.json(orders);
+  const orders = await applyOrderPopulation(Order.find({ ...statusFilter, ...roleFilter, ...riderFilter }).sort({ createdAt: -1 }).limit(100));
+  return res.json(await Promise.all(orders.map(enrichOrderWithRider)));
 };
 
 const getMyOrders = async (req, res) => {
-  const orders = await Order.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(100);
-  return res.json(orders);
+  const orders = await applyOrderPopulation(Order.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(100));
+  return res.json(await Promise.all(orders.map(enrichOrderWithRider)));
 };
 
 const updateOrderStatus = async (req, res) => {
@@ -195,12 +232,31 @@ const updateOrderStatus = async (req, res) => {
     collection: Order.collection.name,
   });
   await createOrderNotification(order, normalizedStatus, note || STATUS_NOTES[normalizedStatus] || `Order status updated to ${normalizedStatus}`);
-  return res.json(order);
+  const populated = await applyOrderPopulation(Order.findById(order._id));
+  return res.json(await enrichOrderWithRider(populated));
 };
 
 const assignDeliveryPartner = async (req, res) => {
-  const { deliveryPartnerId, riderName = "", riderPhone = "" } = req.body;
+  const deliveryPartnerId = req.body.deliveryPartnerId || req.body.riderId;
+  const { riderName = "", riderPhone = "" } = req.body;
   if (!deliveryPartnerId) return res.status(400).json({ message: "deliveryPartnerId is required" });
+
+  const orderIdParam = req.params.id;
+  const orderIdValid = mongoose.Types.ObjectId.isValid(orderIdParam);
+  const riderIdValid = mongoose.Types.ObjectId.isValid(deliveryPartnerId);
+  console.log("[ApnaGaon] assign-rider request:", {
+    orderId: orderIdParam,
+    orderIdValid,
+    riderId: deliveryPartnerId,
+    riderIdValid,
+  });
+  if (!orderIdValid && !String(orderIdParam || "").trim()) {
+    return res.status(400).json({ message: "Invalid order id" });
+  }
+  if (!riderIdValid && !String(deliveryPartnerId || "").trim()) {
+    return res.status(400).json({ message: "Invalid rider id" });
+  }
+
   const order = mongoose.Types.ObjectId.isValid(req.params.id)
     ? await Order.findById(req.params.id)
     : await Order.findOne({ orderId: req.params.id });
@@ -212,16 +268,27 @@ const assignDeliveryPartner = async (req, res) => {
     return res.status(400).json({ message: "Selected user is not a delivery partner" });
   }
 
+  console.log("[ApnaGaon] assign-rider resolved partner:", {
+    partnerId: partner._id,
+    partnerName: partner.name,
+    partnerPhone: partner.phone,
+    model: partner.constructor?.modelName || "unknown",
+  });
+
   order.deliveryPartnerId = partner._id;
   order.riderId = partner._id;
   order.riderName = riderName || partner.name || "";
   order.riderPhone = riderPhone || partner.phone || "";
   order.assignedAt = new Date();
-  order.status = "assigned";
-  order.trackingSteps.push({ status: "assigned", time: order.assignedAt, note: `Assigned to ${order.riderName || "delivery partner"}` });
+  order.status = "out_for_delivery";
+  order.trackingSteps.push({
+    status: "out_for_delivery",
+    time: order.assignedAt,
+    note: `Assigned to ${order.riderName || "delivery partner"} and out for delivery`,
+  });
   await order.save();
   await setDeliveryPartnerAvailability(partner._id, "assigned");
-  await createOrderNotification(order, "assigned", `Assigned to ${order.riderName || "delivery partner"}`);
+  await createOrderNotification(order, "out_for_delivery", `Out for delivery with ${order.riderName || "delivery partner"}`);
   if (partner.role) {
     await notifyUsers([partner._id], {
       role: "delivery",
@@ -233,7 +300,14 @@ const assignDeliveryPartner = async (req, res) => {
       link: "/delivery/orders",
     });
   }
-  return res.json(order);
+  const populated = await applyOrderPopulation(Order.findById(order._id));
+  const responseOrder = await enrichOrderWithRider(populated);
+  console.log("[ApnaGaon] assign-rider success:", {
+    orderId: responseOrder?.orderId,
+    status: responseOrder?.status,
+    riderId: responseOrder?.riderId?._id || responseOrder?.riderId || responseOrder?.deliveryPartnerId || null,
+  });
+  return res.json({ ok: true, order: responseOrder });
 };
 
 module.exports = {
@@ -243,4 +317,5 @@ module.exports = {
   getOrder,
   updateOrderStatus,
   assignDeliveryPartner,
+  enrichOrderWithRider,
 };

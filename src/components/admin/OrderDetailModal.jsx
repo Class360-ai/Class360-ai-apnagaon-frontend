@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { X, CheckCircle2, Clock3, MapPin, MessageCircle, Phone, Truck } from "lucide-react";
 import { formatAddressLine } from "../../utils/locationHelpers";
 import { formatPrice } from "../../utils/helpers";
@@ -19,13 +19,56 @@ const STATUS_INDEX = TRACKING_STEPS.reduce((acc, step, index) => {
   return acc;
 }, {});
 
-const OrderDetailModal = ({ order, onClose, onStatusChange, onWhatsApp, onCall }) => {
+const OrderDetailModal = ({ order, availableRiders = [], onClose, onStatusChange, onWhatsApp, onCall, onAssignRider }) => {
   if (!order) return null;
   const orderId = order.orderId || order.id || order._id || "demo-order";
   const currentIndex = order.status === "cancelled" ? -1 : STATUS_INDEX[order.status] ?? 0;
   const totals = order.totals || {};
   const items = Array.isArray(order.items) ? order.items : [];
   const eta = order.eta || `${order.etaMinutes || 30} min`;
+  const riderIdValue =
+    typeof order.riderId === "object"
+      ? order.riderId?._id || order.riderId?.id || ""
+      : String(order.riderId || order.deliveryPartnerId || "");
+  const riderName = order.riderName || order.riderId?.name || order.deliveryPartnerId?.name || "";
+  const riderPhone = order.riderPhone || order.riderId?.phone || order.deliveryPartnerId?.phone || "";
+  const riderVehicle =
+    order.riderVehicleType ||
+    order.riderId?.vehicleType ||
+    order.riderId?.vehicle ||
+    order.deliveryPartnerId?.vehicleType ||
+    order.deliveryPartnerId?.vehicle ||
+    "";
+  const riderOptions = useMemo(() => {
+    const currentRider = riderIdValue
+      ? {
+          id: riderIdValue,
+          _id: riderIdValue,
+          name: riderName || "Current rider",
+          phone: riderPhone || "",
+        }
+      : null;
+    const next = [...availableRiders];
+    if (currentRider && !next.some((partner) => String(partner.id || partner._id) === String(riderIdValue))) {
+      next.unshift(currentRider);
+    }
+    return next;
+  }, [availableRiders, riderIdValue, riderName, riderPhone]);
+  const [selectedRiderId, setSelectedRiderId] = useState(riderIdValue);
+
+  useEffect(() => {
+    setSelectedRiderId(riderIdValue);
+  }, [riderIdValue]);
+
+  const handleAssign = async () => {
+    if (!selectedRiderId) return;
+    console.log("[ApnaGaon] admin modal assign rider:", {
+      orderId,
+      selectedRiderId,
+      riderIdValue,
+    });
+    await onAssignRider?.(selectedRiderId);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-slate-950/50 p-3 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -115,6 +158,49 @@ const OrderDetailModal = ({ order, onClose, onStatusChange, onWhatsApp, onCall }
                 <PaymentStatusBadge status={order.paymentStatus || order.payment?.status || "pending"} />
               </div>
             </div>
+          </section>
+
+          <section className="mt-3 rounded-[26px] bg-white p-4 ring-1 ring-slate-100">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-slate-400">Rider</p>
+                <h3 className="mt-1 text-lg font-black text-slate-950">Assignment</h3>
+              </div>
+              <Truck className="h-5 w-5 text-emerald-600" />
+            </div>
+
+            <div className="mt-3 rounded-[24px] bg-emerald-50 p-4 ring-1 ring-emerald-100">
+              <p className="text-sm font-black text-emerald-950">{riderName || "No rider assigned yet"}</p>
+              <p className="mt-1 text-xs font-semibold text-emerald-800">{riderPhone || "Phone not available"}</p>
+              <p className="mt-1 text-xs font-semibold text-emerald-800">{riderVehicle || "Vehicle not available"}</p>
+            </div>
+
+            <label className="mt-3 grid gap-2 text-sm font-semibold text-slate-700">
+              <span className="text-xs font-black uppercase tracking-wide text-slate-400">Select rider</span>
+              <select
+                value={selectedRiderId}
+                onChange={(event) => setSelectedRiderId(event.target.value)}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-emerald-500"
+              >
+                <option value="">Choose a delivery partner</option>
+                {riderOptions.map((partner) => {
+                  const partnerId = partner.id || partner._id || "";
+                  return (
+                    <option key={partnerId} value={partnerId}>
+                      {partner.name} {partner.phone ? `· ${partner.phone}` : ""}
+                    </option>
+                  );
+                })}
+              </select>
+              <button
+                type="button"
+                onClick={handleAssign}
+                disabled={!selectedRiderId}
+                className="rounded-full bg-emerald-600 px-4 py-3 text-sm font-black text-white ring-1 ring-emerald-600 disabled:bg-emerald-300"
+              >
+                Assign Rider
+              </button>
+            </label>
           </section>
 
           <section className="mt-3 rounded-[26px] bg-white p-4 ring-1 ring-slate-100">

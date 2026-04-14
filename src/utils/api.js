@@ -122,7 +122,12 @@ export const partnersAPI = {
 };
 
 export const deliveryPartnersAPI = {
-  getAll: () => apiCall("/delivery-partners"),
+  getAll: (options = {}) => {
+    const params = new URLSearchParams();
+    if (options.includeUnavailable) params.set("includeUnavailable", "true");
+    const query = params.toString();
+    return apiCall(`/delivery-partners${query ? `?${query}` : ""}`);
+  },
   create: (data) => apiCall("/delivery-partners", { method: "POST", body: JSON.stringify(data) }),
   update: (id, data) => apiCall(`/delivery-partners/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   updateStatus: (id, status) => apiCall(`/delivery-partners/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
@@ -169,7 +174,7 @@ export const ordersAPI = {
   getByPhone: (phone) => apiCall(`/orders/phone/${phone}`),
   updateStatus: (id, status) => 
     apiCall(`/orders/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) }),
-  assignDeliveryPartner: (id, data) => apiCall(`/orders/${id}/assign`, { method: "PUT", body: JSON.stringify(data) }),
+  assignDeliveryPartner: (id, data) => apiCall(`/orders/${id}/assign-rider`, { method: "PUT", body: JSON.stringify(data) }),
 };
 
 export const paymentsAPI = {

@@ -13,14 +13,13 @@ import ServiceCartCard from "../components/cart/ServiceCartCard";
 import useTranslation from "../utils/useTranslation";
 import { useCart } from "../context/CartContext";
 import { useUser } from "../context/UserContext";
-import { applyRewardToCart, getBestCartReward, removeAppliedReward } from "../utils/rewardHelpers";
+import { getBestCartReward } from "../utils/rewardHelpers";
 import { getApplicableRewards, getRewardById, removeExpiredRewards, rewardWalletEvents } from "../utils/rewardWallet";
 import { getDirectWhatsAppLink, getWhatsAppLink, safeGenerateMessage } from "../utils/whatsappUtils";
 import { getSeedProducts, getSeedServices } from "../data/seed-data";
 import { useLocationIntelligence } from "../utils/locationHelper";
 import { loadCatalogProducts, loadCatalogServices, normalizeCatalogProduct, normalizeCatalogService } from "../utils/catalogApi";
-
-const BASE_DELIVERY_FEE = 0;
+import { calculateCartTotals } from "../utils/calculateCartTotals";
 
 const cartSubtotal = (items = []) =>
   (Array.isArray(items) ? items : []).reduce(
@@ -40,7 +39,7 @@ const normalizeRecommendation = (product) => ({
   quantity: 1,
 });
 
-  const getQuickEssentials = (products = []) => {
+const getQuickEssentials = (products = []) => {
   const sourceProducts = Array.isArray(products) && products.length > 0 ? products : getSeedProducts().map(normalizeCatalogProduct);
   const names = ["Milk", "Bread", "Tea", "Cold Drink", "Eggs"];
   const matched = names
@@ -62,12 +61,12 @@ const CartPage = () => {
   const { lang } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { cart, addToCart, removeFromCart, updateQuantity } = useCart();
+  const { cart, addToCart, removeFromCart, updateQuantity, appliedReward, setAppliedReward, coupon } = useCart();
   const { user } = useUser();
 
   const [activeTab, setActiveTab] = useState("grocery");
   const [applicableRewards, setApplicableRewards] = useState([]);
-  const [selectedRewardId, setSelectedRewardId] = useState(null);
+  const [rewardInitialized, setRewardInitialized] = useState(false);
   const [catalogProducts, setCatalogProducts] = useState([]);
   const [catalogServices, setCatalogServices] = useState([]);
   const locationIntelligence = useLocationIntelligence();
@@ -92,13 +91,24 @@ const CartPage = () => {
       const eligible = getApplicableRewards({ area: "cart", subtotal });
       setApplicableRewards(eligible);
 
-      setSelectedRewardId((currentId) => {
-        if (currentId && eligible.some((reward) => reward.id === currentId)) {
-          return currentId;
+      if (!rewardInitialized) {
+        if (appliedReward && eligible.some((reward) => reward.id === appliedReward.id)) {
+          setRewardInitialized(true);
+          return;
         }
-        const best = getBestCartReward(eligible, groceryItems, { subtotal, deliveryFee: BASE_DELIVERY_FEE });
-        return best?.id || null;
-      });
+
+        const best = getBestCartReward(eligible, groceryItems, { subtotal, deliveryFee: 0 });
+        if (best) {
+          setAppliedReward(best);
+        }
+        setRewardInitialized(true);
+        return;
+      }
+
+      if (appliedReward && !eligible.some((reward) => reward.id === appliedReward.id)) {
+        const best = getBestCartReward(eligible, groceryItems, { subtotal, deliveryFee: 0 });
+        setAppliedReward(best || null);
+      }
     };
 
     syncRewards();
@@ -108,24 +118,29 @@ const CartPage = () => {
       window.removeEventListener(rewardWalletEvents.updated, syncRewards);
       window.removeEventListener("storage", syncRewards);
     };
-  }, [groceryItems, subtotal]);
+  }, [appliedReward, groceryItems, rewardInitialized, setAppliedReward, subtotal]);
 
-  const selectedReward = useMemo(() => {
-    if (!selectedRewardId) return null;
-    return getRewardById(selectedRewardId);
-  }, [selectedRewardId]);
+  useEffect(() => {
+    if (!groceryItems.length) {
+      setRewardInitialized(false);
+    }
+  }, [groceryItems.length]);
 
   const bestReward = useMemo(
-    () => getBestCartReward(applicableRewards, groceryItems, { subtotal, deliveryFee: BASE_DELIVERY_FEE }),
+    () => getBestCartReward(applicableRewards, groceryItems, { subtotal, deliveryFee: 0 }),
     [applicableRewards, groceryItems, subtotal]
   );
 
-  const cartSummary = useMemo(() => {
-    if (!selectedReward) {
-      return removeAppliedReward(groceryItems, { subtotal, deliveryFee: BASE_DELIVERY_FEE });
-    }
-    return applyRewardToCart(groceryItems, selectedReward, { subtotal, deliveryFee: BASE_DELIVERY_FEE });
-  }, [groceryItems, selectedReward, subtotal]);
+  const cartTotals = useMemo(
+    () =>
+      calculateCartTotals(groceryItems, {
+        deliveryFee: 0,
+        packagingFee: 0,
+        appliedReward,
+        coupon,
+      }),
+    [appliedReward, coupon, groceryItems]
+  );
 
   const quickEssentials = useMemo(() => getQuickEssentials(catalogProducts), [catalogProducts]);
   const suggestedServices = useMemo(() => {
@@ -196,11 +211,11 @@ const CartPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-orange-50/50 to-slate-50 pb-28">
-      <main className="mx-auto max-w-md px-4 pt-4">
-        <div className="mb-4 space-y-3">
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">My Cart</h1>
+      <main className="mx-auto max-w-md px-4 pt-3">
+        <div className="mb-3 space-y-2">
+          <h1 className="text-2xl font-black tracking-tight text-slate-950">My Cart</h1>
           {flashMessage ? (
-            <div className="rounded-[22px] bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 ring-1 ring-emerald-100">
+            <div className="rounded-[20px] bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-800 ring-1 ring-emerald-100">
               {flashMessage}
             </div>
           ) : null}
@@ -218,7 +233,7 @@ const CartPage = () => {
           </div>
         ) : null}
 
-        <div className="space-y-4">
+        <div className="space-y-3.5">
           {activeTab === "grocery" ? (
             <>
               {groceryItems.length === 0 ? (
@@ -231,7 +246,7 @@ const CartPage = () => {
                 />
               ) : (
                 <>
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     {groceryItems.map((item) => (
                       <CartItemCard
                         key={item.id}
@@ -247,30 +262,35 @@ const CartPage = () => {
 
                   <RewardApplyBox
                     rewards={applicableRewards}
-                    selectedRewardId={selectedRewardId}
-                    summary={cartSummary}
-                    onSelectReward={setSelectedRewardId}
-                    onClearReward={() => setSelectedRewardId(null)}
-                    onApplyBestReward={() => setSelectedRewardId(bestReward?.id || null)}
+                    selectedRewardId={appliedReward?.id || null}
+                    summary={cartTotals}
+                    onSelectReward={(rewardId) => setAppliedReward(getRewardById(rewardId) || null)}
+                    onClearReward={() => setAppliedReward(null)}
+                    onApplyBestReward={() => setAppliedReward(bestReward || null)}
                   />
 
                   <button
                     type="button"
                     onClick={openCartSupport}
-                    className="flex w-full items-center justify-center gap-2 rounded-[22px] bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-100"
+                    className="flex w-full items-center justify-center gap-2 rounded-[20px] bg-white px-4 py-2.5 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-100"
                   >
                     <MessageCircle className="h-4 w-4 text-emerald-600" />
                     Need help placing order? Contact on WhatsApp
                   </button>
 
                   <CartSummary
-                    subtotal={cartSummary.subtotal}
-                    deliveryFee={cartSummary.deliveryFee}
-                    discountAmount={cartSummary.discountAmount}
-                    total={cartSummary.total}
+                    totals={cartTotals}
                     deliveryVillage={deliveryVillage}
                     deliveryEstimate={deliveryEstimate}
-                    onCheckout={() => navigate("/checkout/address", { state: { appliedRewardId: selectedRewardId } })}
+                    onCheckout={() =>
+                      navigate("/checkout", {
+                        state: {
+                          appliedReward,
+                          coupon,
+                          checkoutItems: groceryItems,
+                        },
+                      })
+                    }
                   />
                 </>
               )}
@@ -304,7 +324,7 @@ const CartPage = () => {
                 </div>
               )}
 
-              <section className="space-y-3">
+              <section className="space-y-2.5">
                 <div className="px-1">
                   <h2 className="text-base font-black text-slate-950">Requested Services</h2>
                   <p className="text-xs font-semibold text-slate-500">Trusted local help near {deliveryVillage}</p>

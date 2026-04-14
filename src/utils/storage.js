@@ -1,6 +1,7 @@
 // Local storage utilities for persistent cart and language preference
 
 const CART_STORAGE_KEY = "apnagaon_cart";
+const CART_META_STORAGE_KEY = "apnagaon_cart_meta";
 const LANGUAGE_STORAGE_KEY = "apnagaon_language";
 const USER_STORAGE_KEY = "apnagaon_user";
 
@@ -26,8 +27,27 @@ export const getCartFromLocalStorage = () => {
 export const clearCartFromLocalStorage = () => {
   try {
     localStorage.removeItem(CART_STORAGE_KEY);
+    localStorage.removeItem(CART_META_STORAGE_KEY);
   } catch (error) {
     console.error("Error clearing cart from localStorage:", error);
+  }
+};
+
+export const saveCartMetaToLocalStorage = (meta) => {
+  try {
+    localStorage.setItem(CART_META_STORAGE_KEY, JSON.stringify(meta || {}));
+  } catch (error) {
+    console.error("Error saving cart meta to localStorage:", error);
+  }
+};
+
+export const getCartMetaFromLocalStorage = () => {
+  try {
+    const meta = localStorage.getItem(CART_META_STORAGE_KEY);
+    return meta ? JSON.parse(meta) : {};
+  } catch (error) {
+    console.error("Error retrieving cart meta from localStorage:", error);
+    return {};
   }
 };
 
@@ -86,6 +106,8 @@ export default {
   saveCartToLocalStorage,
   getCartFromLocalStorage,
   clearCartFromLocalStorage,
+  saveCartMetaToLocalStorage,
+  getCartMetaFromLocalStorage,
   saveLanguagePreference,
   getLanguagePreference,
   saveUserPreference,

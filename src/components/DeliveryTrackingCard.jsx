@@ -1,5 +1,5 @@
 import React from "react";
-import { Clock3, Phone, ShieldCheck, ShoppingBag, Truck } from "lucide-react";
+import { Bike, Clock3, Phone, ShieldCheck, ShoppingBag, Truck } from "lucide-react";
 import { formatAddressLine } from "../utils/locationHelpers";
 import { formatPrice } from "../utils/helpers";
 import { ORDER_STATUS_META, getTrackingStepIndex, resolveTrackingStatus } from "../utils/orderStorage";
@@ -24,6 +24,9 @@ const DeliveryTrackingCard = ({ order = {} }) => {
   const totals = order.totals || {};
   const totalAmount = Number(totals.total ?? order.total ?? 0) || 0;
   const deliveryFee = Number(totals.deliveryFee ?? order.deliveryFee ?? 0) || 0;
+  const riderName = order.riderName || order.riderId?.name || order.deliveryPartnerId?.name || "";
+  const riderPhone = order.riderPhone || order.riderId?.phone || order.deliveryPartnerId?.phone || "";
+  const riderVehicle = order.riderVehicleType || order.riderId?.vehicleType || order.riderId?.vehicle || "";
 
   return (
     <section className="space-y-4 rounded-[32px] bg-white p-4 shadow-sm ring-1 ring-slate-100">
@@ -139,18 +142,31 @@ const DeliveryTrackingCard = ({ order = {} }) => {
         </div>
       </div>
 
-      {order.riderName || order.riderPhone || order.deliveryPartnerId ? (
+      {riderName || riderPhone || order.deliveryPartnerId || order.riderId ? (
         <div className="rounded-[24px] bg-emerald-50 p-4 ring-1 ring-emerald-100">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Rider</p>
-              <p className="mt-1 text-sm font-black text-emerald-950">{order.riderName || "Delivery partner assigned"}</p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-emerald-600 p-2 text-white">
+                  <Bike className="h-4 w-4" />
+                </span>
+                <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Delivery Partner</p>
+              </div>
+              <p className="mt-2 text-sm font-black text-emerald-950">{riderName || "Delivery partner assigned"}</p>
+              <p className="mt-1 text-xs font-semibold text-emerald-800">Rider is on the way 🚚</p>
               <p className="mt-1 text-xs font-semibold text-emerald-800">Assigned once the shop hands over the order.</p>
+              {riderVehicle ? <p className="mt-1 text-xs font-bold text-emerald-700">{riderVehicle}</p> : null}
+              {riderPhone ? <p className="mt-1 text-xs font-semibold text-emerald-800">{riderPhone}</p> : null}
             </div>
-            {order.riderPhone ? (
-              <button type="button" onClick={() => (window.location.href = `tel:${order.riderPhone}`)} className="rounded-full bg-emerald-600 p-3 text-white" aria-label="Call rider">
+            {riderPhone ? (
+              <a
+                href={`tel:${riderPhone}`}
+                className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-black text-white shadow-sm"
+                aria-label="Call rider"
+              >
                 <Phone className="h-4 w-4" />
-              </button>
+                Call Rider
+              </a>
             ) : null}
           </div>
         </div>

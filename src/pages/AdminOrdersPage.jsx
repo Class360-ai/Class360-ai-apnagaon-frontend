@@ -5,7 +5,7 @@ import AdminStatsCards from "../components/admin/AdminStatsCards";
 import OrderFilters from "../components/admin/OrderFilters";
 import OrderRow from "../components/admin/OrderRow";
 import OrderDetailModal from "../components/admin/OrderDetailModal";
-import { ordersAPI, safeFetch } from "../utils/api";
+import { deliveryPartnersAPI, ordersAPI, safeFetch } from "../utils/api";
 import { formatAddressLine } from "../utils/locationHelpers";
 import {
   getLocalOrders,
@@ -51,20 +51,24 @@ const AdminOrdersPage = () => {
   const [error, setError] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [search, setSearch] = useState("");
+  const [deliveryPartners, setDeliveryPartners] = useState([]);
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       let backendOrders = null;
+      let backendPartners = null;
       try {
         backendOrders = toOrderArray(await ordersAPI.getAll());
+        backendPartners = await safeFetch(() => deliveryPartnersAPI.getAll(), []);
       } catch (fetchError) {
         console.warn("[ApnaGaon] Failed to load backend orders:", fetchError);
         setError(fetchError?.message || "Unable to load backend orders");
       }
       const localOrders = getLocalOrders();
       const merged = mergeOrders(backendOrders || [], localOrders);
+      setDeliveryPartners(Array.isArray(backendPartners) ? backendPartners : []);
       setOrders(merged.length ? merged : localOrders);
       if (!merged.length && !localOrders.length && !backendOrders?.length) {
         setError((current) => current || "No orders available yet.");
@@ -157,13 +161,7 @@ const AdminOrdersPage = () => {
 
     const backendOrder = await safeFetch(() => ordersAPI.updateStatus(orderId, status), null);
     if (backendOrder) {
-      const normalized = normalizeOrder(backendOrder);
-      setOrders((current) =>
-        mergeOrders(
-          current.map((item) => ((item.id || item._id || item.orderId) === orderId ? normalized : item)),
-          []
-        )
-      );
+      await loadOrders();
       return;
     }
 
@@ -260,10 +258,28 @@ const AdminOrdersPage = () => {
       {selectedOrder ? (
         <OrderDetailModal
           order={selectedOrder}
+          availableRiders={deliveryPartners}
           onClose={() => setSelectedOrderId(null)}
           onStatusChange={(status) => updateStatus(selectedOrder, status)}
           onWhatsApp={() => handleWhatsApp(selectedOrder)}
           onCall={() => handleCall(selectedOrder)}
+          onAssignRider={async (riderId) => {
+            if (!riderId || !selectedOrder) return;
+            const orderId = selectedOrder._id || selectedOrder.id || selectedOrder.orderId;
+            console.log("[ApnaGaon] admin order modal assign rider request:", {
+              orderId,
+              riderId,
+              selectedOrderStatus: selectedOrder.status,
+            });
+            try {
+              const response = await ordersAPI.assignDeliveryPartner(orderId, { riderId });
+              console.log("[ApnaGaon] admin order modal assign rider response:", response);
+              await loadOrders();
+            } catch (error) {
+              console.error("[ApnaGaon] admin order modal assign rider failed:", error);
+              setError(error?.message || "Unable to assign rider");
+            }
+          }}
         />
       ) : null}
     </div>

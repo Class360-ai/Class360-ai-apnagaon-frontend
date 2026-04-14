@@ -31,10 +31,13 @@ const normalizePartner = (partner) => ({
   name: String(partner.name || "").trim(),
   phone: String(partner.phone || "").trim(),
   vehicle: String(partner.vehicle || "Bike").trim(),
+  vehicleType: String(partner.vehicleType || partner.vehicle || "Bike").trim(),
   area: String(partner.area || "").trim(),
   notes: String(partner.notes || "").trim(),
   status: String(partner.status || "available").trim().toLowerCase() === "busy" ? "busy" : "available",
+  currentStatus: String(partner.status || "available").trim().toLowerCase() === "busy" ? "busy" : "available",
   available: String(partner.status || "available").trim().toLowerCase() !== "busy",
+  isAvailable: String(partner.status || "available").trim().toLowerCase() !== "busy",
 });
 
 const seedDeliveryPartnersInDatabase = async () => {

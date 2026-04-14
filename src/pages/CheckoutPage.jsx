@@ -1,351 +1,606 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import EmptyState from "../components/EmptyState";
-import CheckoutStepper from "../components/checkout/CheckoutStepper";
-import AddressStep from "../components/checkout/AddressStep";
-import OrderSummaryStep from "../components/checkout/OrderSummaryStep";
-import PaymentStep from "../components/checkout/PaymentStep";
-import useTranslation from "../utils/useTranslation";
+import { ArrowLeft, Clock3, MapPin, MessageCircle, NotebookPen, ShieldCheck } from "lucide-react";
+import CheckoutForm from "../components/checkout/CheckoutForm";
+import OrderSummary from "../components/checkout/OrderSummary";
+import PaymentMethodSelector from "../components/checkout/PaymentMethodSelector";
 import { useCart } from "../context/CartContext";
 import { useUser } from "../context/UserContext";
-import { addRewardPoints } from "../utils/rewardPoints";
-import { applyRewardToCart, getBestCartReward, removeAppliedReward, validateRewardUse } from "../utils/rewardHelpers";
-import { getApplicableRewards, getRewardById, markUsed, removeExpiredRewards, rewardWalletEvents } from "../utils/rewardWallet";
-import { ordersAPI, paymentsAPI, safeFetch } from "../utils/api";
-import { useLocationIntelligence } from "../utils/locationHelpers";
-import { saveLocalOrder } from "../utils/orderStorage";
-import { getPaymentDisplayName } from "../utils/upiPayments";
-import { buildSimulatedTransactionId, createPaymentPayload, getDefaultUpiProvider, PAYMENT_METHODS, PAYMENT_STATUSES } from "../utils/paymentHelpers";
+import { formatPrice } from "../utils/helpers";
+import { createOrder } from "../services/orderService";
+import { buildWhatsAppCheckoutLink } from "../utils/whatsappMessage";
+import { generateWhatsAppOrderMessage } from "../utils/generateWhatsAppOrderMessage";
+import { getLaunchBrandName } from "../utils/runtimeConfig";
+import { createLocationSnapshot, formatLocationLabel, getCurrentLocation } from "../utils/location";
+import { formatAddressLine, getSelectedAddress, normalizeAddress, saveSelectedAddress } from "../utils/locationHelpers";
+import { getOrders as getLocalOrders } from "../utils/orderTracking";
+import { calculateCartTotals } from "../utils/calculateCartTotals";
 
-const BASE_DELIVERY_FEE = 0;
-const SERVICE_FEE = 0;
-
-const stepFromPath = (pathname) => {
-  if (pathname.includes("/checkout/payment")) return "payment";
-  if (pathname.includes("/checkout/summary")) return "summary";
-  return "address";
+const DEFAULT_FORM = {
+  fullName: "",
+  phone: "",
+  address: "",
+  landmark: "",
+  notes: "",
 };
 
-const couponRules = {
-  APNA10: { code: "APNA10", type: "flat", value: 10, label: "Rs 10 off" },
-  FREEDEL: { code: "FREEDEL", type: "delivery", value: 0, label: "Free delivery" },
-  TEAGIFT: { code: "TEAGIFT", type: "flat", value: 5, label: "Tea gift discount" },
-};
+const REQUIRED_FIELDS = ["fullName", "phone", "address"];
+const DELIVERY_FEE = 0;
 
-const resolvePaymentMethod = (method) => {
-  if (method === "gift") return PAYMENT_METHODS.COD;
-  if (method === "card") return PAYMENT_METHODS.UPI;
-  return method === PAYMENT_METHODS.COD ? PAYMENT_METHODS.COD : PAYMENT_METHODS.UPI;
-};
+const isServiceCheckoutItem = (item = {}) =>
+  item.cartType === "service" ||
+  item.itemType === "service" ||
+  item.type === "service" ||
+  item.kind === "service";
 
-const CheckoutPage = () => {
-  const { lang } = useTranslation();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { cart } = useCart();
-  const { user } = useUser();
-  const locationIntelligence = useLocationIntelligence();
-  const activeStep = stepFromPath(location.pathname);
-
-  const initialItems = location.state?.checkoutItems || cart;
-  const initialRewardId = location.state?.appliedRewardId || null;
-  const checkoutItems = useMemo(() => {
-    if (!Array.isArray(initialItems) || initialItems.length === 0) return [];
-    return initialItems.map((item) => ({ ...item, quantity: item.quantity || 1 }));
-  }, [initialItems]);
-
-  const subtotal = useMemo(
-    () => checkoutItems.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0),
-    [checkoutItems]
-  );
-
-  const [selectedRewardId, setSelectedRewardId] = useState(initialRewardId);
-  const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS.COD);
-  const [upiMethod, setUpiMethod] = useState(getDefaultUpiProvider());
-  const [paymentStatus, setPaymentStatus] = useState(PAYMENT_STATUSES.PENDING);
-  const [paymentError, setPaymentError] = useState("");
-  const [placingOrder, setPlacingOrder] = useState(false);
-
-  useEffect(() => {
-    const syncRewards = () => {
-      removeExpiredRewards();
-      const eligible = getApplicableRewards({ area: "cart", subtotal });
-      setSelectedRewardId((currentId) => {
-        if (currentId && eligible.some((reward) => reward.id === currentId)) return currentId;
-        const best = getBestCartReward(eligible, checkoutItems, { subtotal, deliveryFee: BASE_DELIVERY_FEE });
-        return best?.id || null;
-      });
-    };
-
-    syncRewards();
-    window.addEventListener(rewardWalletEvents.updated, syncRewards);
-    window.addEventListener("storage", syncRewards);
-    return () => {
-      window.removeEventListener(rewardWalletEvents.updated, syncRewards);
-      window.removeEventListener("storage", syncRewards);
-    };
-  }, [checkoutItems, subtotal]);
-
-  useEffect(() => {
-    setPaymentStatus(paymentMethod === PAYMENT_METHODS.COD ? PAYMENT_STATUSES.COD_PENDING : PAYMENT_STATUSES.PENDING);
-    setPaymentError("");
-  }, [paymentMethod]);
-
-  const selectedReward = useMemo(() => (selectedRewardId ? getRewardById(selectedRewardId) : null), [selectedRewardId]);
-
-  const rewardPricing = useMemo(() => {
-    if (!selectedReward) return removeAppliedReward(checkoutItems, { subtotal, deliveryFee: BASE_DELIVERY_FEE });
-    return applyRewardToCart(checkoutItems, selectedReward, { subtotal, deliveryFee: BASE_DELIVERY_FEE });
-  }, [checkoutItems, selectedReward, subtotal]);
-
-  const pricing = useMemo(() => {
-    let deliveryFee = rewardPricing.deliveryFee || 0;
-    let couponDiscount = 0;
-    if (appliedCoupon?.type === "flat") couponDiscount = Math.min(appliedCoupon.value, Math.max(0, rewardPricing.total));
-    if (appliedCoupon?.type === "delivery") deliveryFee = 0;
-    const total = Math.max(0, subtotal + deliveryFee + SERVICE_FEE - (rewardPricing.discountAmount || 0) - couponDiscount);
-    return {
-      subtotal,
-      deliveryFee,
-      serviceFee: SERVICE_FEE,
-      discount: (rewardPricing.discountAmount || 0) + couponDiscount,
-      total,
-    };
-  }, [appliedCoupon, rewardPricing, subtotal]);
-
-  const applyCoupon = (rawCode) => {
-    const code = String(rawCode || "").trim().toUpperCase();
-    const coupon = couponRules[code];
-    if (!coupon) return { ok: false, message: "Invalid coupon code" };
-    setAppliedCoupon(coupon);
-    return { ok: true };
-  };
-
-  const goTo = (step) => {
-    navigate(`/checkout/${step}`, { state: location.state || {} });
-  };
-
-  const hasUsableAddress = Boolean(locationIntelligence.address?.id && locationIntelligence.address?.source !== "default");
-
-  const buildPaymentRecord = (orderId, method, provider, status, transactionId = "", meta = {}) =>
-    createPaymentPayload({
-      orderId,
-      userId: user?.id || user?._id || "",
-      method,
-      provider,
-      amount: pricing.total,
-      status,
-      transactionId,
-      meta,
+const normalizeCheckoutItems = (items = []) =>
+  (Array.isArray(items) ? items : [])
+    .filter(Boolean)
+    .map((item, index) => {
+      const quantity = Math.max(1, Number(item.quantity || item.qty || 1) || 1);
+      const price = Number(item.price || item.fee || 0) || 0;
+      return {
+        id: item.id || item._id || `${item.name || "item"}-${index}`,
+        name: item.name || "Item",
+        price,
+        quantity,
+        image: item.image || "",
+        unit: item.unit || item.subtitle || item.categoryName || "",
+      };
     });
 
-  const createPaymentOnBackend = async (paymentPayload) => {
-    const payment = await safeFetch(() => paymentsAPI.create(paymentPayload), null);
-    if (!payment?.payment) return null;
-    return payment.payment;
+const validateForm = (form, paymentMethod) => {
+  const errors = {};
+  REQUIRED_FIELDS.forEach((field) => {
+    if (!String(form[field] || "").trim()) errors[field] = "This field is required";
+  });
+  const digits = String(form.phone || "").replace(/\D/g, "");
+  if (digits.length !== 10) errors.phone = "Phone number must be 10 digits";
+  if (!String(paymentMethod || "").trim()) errors.paymentMethod = "Please select a payment method";
+  return errors;
+};
+
+const SelectedAddressCard = ({ address, onChangeAddress, onChangeOnMap }) => {
+  if (!address) return null;
+
+  const isCurrentLocation = address.source === "current" || address.label === "Current Location";
+  const isMapPicked = address.source === "map-picker";
+  const addressLine =
+    isCurrentLocation
+      ? address.area || address.house || "Current location selected"
+      : [address.house, address.area, address.city, address.state, address.pincode].filter(Boolean).join(", ") ||
+        address.address ||
+        address.area ||
+        "Address not set";
+
+  return (
+    <section className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-emerald-100">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Selected address</p>
+          <h2 className="mt-1 text-lg font-black text-slate-950">
+            {isMapPicked ? "Pinned delivery location selected" : "Your delivery spot"}
+          </h2>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-[11px] font-black ${isMapPicked ? "bg-slate-950 text-white" : "bg-emerald-50 text-emerald-700"}`}>
+          {isMapPicked ? "Map selected" : "Active"}
+        </span>
+      </div>
+
+      <div className={`mt-4 rounded-[24px] p-4 ring-1 ${isMapPicked ? "bg-slate-50 ring-slate-100" : "bg-emerald-50 ring-emerald-100"}`}>
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 ring-1 ring-emerald-100">
+            <MapPin className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-black text-slate-950">{address.label || "Saved address"}</p>
+              {isCurrentLocation ? <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-emerald-700">GPS</span> : null}
+              {isMapPicked ? <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-700">Map pinned</span> : null}
+            </div>
+            <p className="mt-1 text-sm font-semibold leading-6 text-slate-700">{addressLine}</p>
+            {address.fullName ? <p className="mt-2 text-xs font-bold text-slate-500">{address.fullName}</p> : null}
+            {address.phone ? <p className="mt-1 text-xs font-bold text-slate-500">{address.phone}</p> : null}
+            {Number.isFinite(Number(address.lat)) && Number.isFinite(Number(address.lon)) ? (
+              <p className="mt-1 text-[11px] font-semibold text-emerald-700">
+                {Number(address.lat).toFixed(5)}, {Number(address.lon).toFixed(5)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={onChangeAddress}
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-slate-950 px-4 py-3 text-sm font-black text-white"
+        >
+          Change Address
+        </button>
+        <button
+          type="button"
+          onClick={onChangeOnMap || onChangeAddress}
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-black text-emerald-700 ring-1 ring-emerald-100"
+        >
+          {isMapPicked ? "Change on Map" : "Review Saved"}
+        </button>
+      </div>
+    </section>
+  );
+};
+
+const DeliveryDetailsCard = ({ note, onNoteChange, contactless, onContactlessChange, etaLabel }) => (
+  <section className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-100">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <p className="text-xs font-black uppercase tracking-wide text-slate-400">Delivery details</p>
+        <h2 className="mt-1 text-lg font-black text-slate-950">Instructions for delivery</h2>
+      </div>
+      <div className="rounded-full bg-slate-50 px-3 py-1 text-[11px] font-black text-slate-600 ring-1 ring-slate-100">
+        {etaLabel}
+      </div>
+    </div>
+
+    <div className="mt-4 grid gap-3 rounded-[20px] bg-slate-50 p-4 ring-1 ring-slate-100">
+      <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+        <Clock3 className="h-4 w-4 text-orange-500" />
+        Estimated delivery in {etaLabel}
+      </div>
+      <label className="block">
+        <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-wide text-slate-500">
+          <NotebookPen className="h-3.5 w-3.5 text-emerald-600" />
+          <span>Delivery note</span>
+          <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-500">Optional</span>
+        </span>
+        <textarea
+          rows={3}
+          value={note || ""}
+          onChange={(event) => onNoteChange(event.target.value)}
+          placeholder="Gate code, timing, call before arrival, etc."
+          className="w-full rounded-[16px] border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-4 focus:ring-orange-100"
+        />
+      </label>
+
+      <button
+        type="button"
+        onClick={() => onContactlessChange?.(!contactless)}
+        className={`flex items-center justify-between gap-3 rounded-[16px] px-4 py-3 text-left text-sm font-black transition ${
+          contactless ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100" : "bg-white text-slate-700 ring-1 ring-slate-100"
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4" />
+          Contactless delivery
+        </span>
+        <span className="text-xs font-black uppercase tracking-wide">{contactless ? "On" : "Off"}</span>
+      </button>
+    </div>
+  </section>
+);
+
+const CheckoutPage = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { cart, appliedReward, coupon } = useCart();
+  const { user } = useUser();
+  const selectedAddress = useMemo(() => location.state?.selectedAddress || getSelectedAddress(), [location.state?.selectedAddress]);
+
+  const checkoutItems = useMemo(() => {
+    const sourceItems = location.state?.checkoutItems || cart;
+    const filteredItems = Array.isArray(sourceItems) ? sourceItems.filter((item) => !isServiceCheckoutItem(item)) : [];
+    return normalizeCheckoutItems(filteredItems);
+  }, [cart, location.state?.checkoutItems]);
+
+  const totals = useMemo(
+    () =>
+      calculateCartTotals(checkoutItems, {
+        deliveryFee: DELIVERY_FEE,
+        packagingFee: 0,
+        appliedReward,
+        coupon,
+      }),
+    [appliedReward, checkoutItems, coupon]
+  );
+
+  const [form, setForm] = useState(DEFAULT_FORM);
+  const [addressType, setAddressType] = useState("home");
+  const [contactless, setContactless] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("cod");
+  const [locationState, setLocationState] = useState(() => createLocationSnapshot({ locationSource: "manual" }));
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
+  const [appLoading, setAppLoading] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(true);
+
+  useEffect(() => {
+    setForm((current) => ({
+      ...current,
+      fullName: current.fullName || user?.name || user?.fullName || "",
+      phone: current.phone || user?.phone || "",
+      address: current.address || user?.address || user?.village || "",
+    }));
+  }, [user]);
+
+  useEffect(() => {
+    const selected = location.state?.selectedAddress || getSelectedAddress();
+    if (!selected) return;
+
+    const normalized = normalizeAddress(selected);
+    const normalizedLabel = String(normalized.label || "").toLowerCase();
+    if (normalizedLabel.includes("work")) setAddressType("work");
+    else if (normalizedLabel.includes("other")) setAddressType("other");
+    else setAddressType("home");
+    const addressLabel =
+      normalized.source === "current" || normalized.label === "Current Location"
+        ? normalized.area || normalized.label || "Current location selected"
+        : formatAddressLine(normalized) || normalized.area || normalized.label || "";
+    setForm((current) => ({
+      ...current,
+      fullName: current.fullName || normalized.fullName || user?.name || user?.fullName || "",
+      phone: current.phone || normalized.phone || user?.phone || "",
+      address: current.address || addressLabel,
+      landmark: current.landmark || normalized.note || "",
+    }));
+    setLocationState(
+      createLocationSnapshot({
+        latitude: normalized.lat,
+        longitude: normalized.lon,
+        addressLabel,
+        locationSource: normalized.source === "current" ? "gps" : normalized.source === "gps" ? "gps" : "manual",
+      })
+    );
+  }, [location.state?.selectedAddress, user]);
+
+  useEffect(() => {
+    if (!checkoutItems.length) {
+      navigate("/cart", { replace: true });
+      return;
+    }
+    setBootstrapping(false);
+  }, [checkoutItems.length, navigate]);
+
+  const updateField = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setErrors((current) => ({ ...current, [field]: "" }));
+    setSubmitError("");
+    if (field === "address") {
+      setLocationState((current) => ({
+        ...current,
+        addressLabel: String(value || "").trim(),
+        locationSource: current.latitude && current.longitude ? current.locationSource : "manual",
+      }));
+    }
   };
 
-  const finalizeOrder = async (resolvedPayment, orderId) => {
-    const latestReward = selectedReward?.id ? getRewardById(selectedReward.id) : null;
-    const rewardValidity = latestReward ? validateRewardUse(latestReward, checkoutItems) : { valid: false };
-    const rewardForOrder = rewardValidity.valid ? latestReward : null;
-    const paymentLabel = getPaymentDisplayName(paymentMethod, upiMethod);
+  const touchField = (field) => {
+    setTouched((current) => ({ ...current, [field]: true }));
+    if (REQUIRED_FIELDS.includes(field)) {
+      const nextErrors = validateForm(form, paymentMethod);
+      setErrors((current) => ({ ...current, [field]: nextErrors[field] || "" }));
+    }
+  };
 
-    const orderPayload = {
-      id: orderId,
+  const resolveCustomer = () => ({
+    name: String(form.fullName || user?.name || "ApnaGaon Customer").trim(),
+    phone: String(form.phone || user?.phone || "").trim(),
+    address: String(form.address || "").trim(),
+    landmark: String(form.landmark || "").trim(),
+    notes: String(form.notes || "").trim(),
+  });
+
+  const buildOrderBase = (status) => {
+    const customer = resolveCustomer();
+    const orderId = `AG${Date.now().toString().slice(-8)}`;
+    const paymentLabel = paymentMethod === "upi" ? "UPI" : "Cash on Delivery";
+
+    return {
       orderId,
-      customerName: locationIntelligence.address?.fullName || user?.name || "ApnaGaon Customer",
-      phone: locationIntelligence.address?.phone || user?.phone || "",
-      customer: {
-        name: locationIntelligence.address?.fullName || user?.name || "ApnaGaon Customer",
-        phone: locationIntelligence.address?.phone || user?.phone || "",
+      customerName: customer.name,
+      phone: customer.phone,
+      customer,
+      address: {
+        fullName: customer.name,
+        phone: customer.phone,
+        address: customer.address,
+        landmark: customer.landmark,
+        note: customer.notes,
+        latitude: locationState.latitude,
+        longitude: locationState.longitude,
+        addressLabel: locationState.addressLabel || customer.address,
+        locationSource: locationState.locationSource || "manual",
       },
-      address: locationIntelligence.address,
       items: checkoutItems,
-      totals: pricing,
+      totals,
+      subtotal: totals.subtotal,
+      deliveryFee: totals.deliveryFee,
+      packagingFee: totals.packagingFee,
+      discount: totals.discount,
+      total: totals.total,
+      latitude: locationState.latitude,
+      longitude: locationState.longitude,
+      addressLabel: locationState.addressLabel || customer.address,
+      locationSource: locationState.locationSource || "manual",
+      addressType,
+      contactlessDelivery: contactless,
       paymentMethod: paymentLabel,
-      paymentId: resolvedPayment?.id || resolvedPayment?._id || null,
-      paymentStatus: resolvedPayment?.status || paymentStatus,
-      payment: {
-        id: resolvedPayment?.id || resolvedPayment?._id || null,
-        orderId,
-        method: resolvedPayment?.method || resolvePaymentMethod(paymentMethod),
-        provider: resolvedPayment?.provider || (paymentMethod === PAYMENT_METHODS.COD ? "cod" : upiMethod),
-        amount: pricing.total,
-        status: resolvedPayment?.status || paymentStatus,
-        transactionId: resolvedPayment?.transactionId || "",
-        createdAt: resolvedPayment?.createdAt || new Date().toISOString(),
-      },
-      rewardUsed: rewardForOrder?.name || "",
-      couponCode: appliedCoupon?.code || "",
-      couponUsed: appliedCoupon?.code || "",
-      note: locationIntelligence.address?.note || "",
-      eta: locationIntelligence.deliveryEstimate,
-      etaMinutes: Number.parseInt(locationIntelligence.deliveryEstimate, 10) || 30,
-      status: "placed",
+      paymentStatus: paymentMethod === "upi" ? "pending" : "cod_pending",
+      status,
+      source: status === "whatsapp_pending" ? "whatsapp" : "app",
+      notes: customer.notes,
+      landmark: customer.landmark,
+      appliedReward: appliedReward || null,
+      rewardUsed: appliedReward?.code || appliedReward?.name || null,
+      coupon: coupon || null,
+      couponCode: coupon?.code || null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      meta: {
+        checkoutType: status === "whatsapp_pending" ? "whatsapp" : "app",
+        brandName: getLaunchBrandName(),
+      },
     };
-
-    const order = await safeFetch(() => ordersAPI.create(orderPayload), null);
-    const savedOrder = saveLocalOrder({ ...orderPayload, ...(order || {}) });
-    const resolvedOrderId = order?.orderId || order?.id || order?._id || savedOrder?.orderId || savedOrder?.id || savedOrder?._id || orderId;
-
-    if (rewardForOrder?.id) markUsed(rewardForOrder.id);
-    addRewardPoints(30);
-
-    await new Promise((resolve) => window.setTimeout(resolve, 250));
-    navigate(`/track-order/${resolvedOrderId || "demo-order"}`);
   };
 
-  const processPaymentAndOrder = async () => {
-    if (!checkoutItems.length || !hasUsableAddress || !paymentMethod) {
-      if (!hasUsableAddress) goTo("address");
-      return;
+  const handleValidation = () => {
+    setHasAttemptedSubmit(true);
+    setTouched((current) => ({
+      ...current,
+      fullName: true,
+      phone: true,
+      address: true,
+    }));
+    const nextErrors = validateForm(form, paymentMethod);
+    setErrors(nextErrors);
+    const firstError = Object.keys(nextErrors)[0];
+    if (firstError) {
+      setSubmitError(
+        firstError === "paymentMethod"
+          ? "Please select a payment method to continue."
+          : "Please complete Full Name, Phone Number, and Full Address to continue."
+      );
     }
+    return Object.keys(nextErrors).length === 0;
+  };
 
-    if (paymentMethod === "card") {
-      setPaymentStatus(PAYMENT_STATUSES.FAILED);
-      setPaymentError("Card payments are coming soon.");
-      return;
-    }
-
-    setPlacingOrder(true);
-    setPaymentError("");
-
-    const orderId = `AG${Date.now().toString().slice(-8)}`;
-    const method = resolvePaymentMethod(paymentMethod);
-    const provider = method === PAYMENT_METHODS.COD ? "cod" : upiMethod;
+  const handleUseCurrentLocation = async () => {
+    setLocationState((current) => ({ ...current, loading: true, message: "Fetching location..." }));
+    setSubmitError("");
 
     try {
-      if (method === PAYMENT_METHODS.COD) {
-        const paymentRecord = buildPaymentRecord(orderId, method, provider, PAYMENT_STATUSES.COD_PENDING, "");
-        const backendPayment = await createPaymentOnBackend(paymentRecord);
-        await finalizeOrder(backendPayment || paymentRecord, orderId);
-        return;
-      }
-
-      const paymentRecord = buildPaymentRecord(orderId, method, provider, PAYMENT_STATUSES.PENDING, "", {
-        gateway: "simulated",
+      const currentLocation = await getCurrentLocation();
+      const label = formatLocationLabel(currentLocation);
+      setLocationState({
+        ...currentLocation,
+        addressLabel: currentLocation.addressLabel || "Current location selected",
+        message: `Location selected successfully${label ? ` - ${label}` : ""}`,
+        loading: false,
       });
-      const backendPayment = await createPaymentOnBackend(paymentRecord);
-
-      if (backendPayment && backendPayment.status === PAYMENT_STATUSES.FAILED) {
-        setPaymentStatus(PAYMENT_STATUSES.FAILED);
-        setPaymentError("UPI payment failed. Please try again or switch to COD.");
-        return;
-      }
-
-      if (backendPayment) {
-        const transactionId = buildSimulatedTransactionId(orderId, provider);
-        const verified = await safeFetch(
-          () =>
-            paymentsAPI.verify(backendPayment.id || backendPayment._id, {
-              success: true,
-              transactionId,
-              gateway: "simulated",
-            }),
-          null
-        );
-        if (verified?.payment?.status === PAYMENT_STATUSES.FAILED) {
-          setPaymentStatus(PAYMENT_STATUSES.FAILED);
-          setPaymentError("UPI payment failed. Please try again or switch to COD.");
-          return;
-        }
-        const resolvedPayment = verified?.payment || {
-          ...backendPayment,
-          status: PAYMENT_STATUSES.PAID,
-          transactionId,
-        };
-        setPaymentStatus(PAYMENT_STATUSES.PAID);
-        await finalizeOrder(resolvedPayment, orderId);
-        return;
-      }
-
-      const simulatedPayment = {
-        ...paymentRecord,
-        id: `pay_${orderId}`,
-        status: PAYMENT_STATUSES.PAID,
-        transactionId: buildSimulatedTransactionId(orderId, provider),
-        createdAt: new Date().toISOString(),
-      };
-      setPaymentStatus(PAYMENT_STATUSES.PAID);
-      await finalizeOrder(simulatedPayment, orderId);
+      saveSelectedAddress(
+        normalizeAddress({
+          label: "Current Location",
+          fullName: form.fullName || user?.name || "",
+          phone: form.phone || user?.phone || "",
+          house: currentLocation.addressLabel || "Current location selected",
+          area: currentLocation.addressLabel || "Current location selected",
+          lat: currentLocation.latitude,
+          lon: currentLocation.longitude,
+          source: "current",
+        })
+      );
+      setForm((current) => ({
+        ...current,
+        address: currentLocation.addressLabel || "Current location selected",
+      }));
     } catch (error) {
-      setPaymentStatus(PAYMENT_STATUSES.FAILED);
-      setPaymentError(error?.message || "Payment failed. Please retry.");
-    } finally {
-      setPlacingOrder(false);
+      const message =
+        error?.code === 1
+          ? "Location allow karein for faster checkout, ya manually address enter karein"
+          : error?.message === "geolocation_unavailable"
+            ? "This device does not support location access."
+            : "We could not fetch your location right now. Please enter the address manually.";
+      setLocationState((current) => ({ ...current, loading: false, message, locationSource: "manual" }));
+      setSubmitError(message);
     }
   };
 
-  if (!checkoutItems.length) {
+  const handleWhatsAppOrder = async () => {
+    if (!handleValidation()) return;
+
+    setWhatsappLoading(true);
+    setSubmitError("");
+
+    try {
+      const orderPayload = buildOrderBase("whatsapp_pending");
+      console.debug("[Checkout] whatsapp order payload before save:", orderPayload);
+      const savedOrder = await createOrder(orderPayload);
+      console.debug("[Checkout] local orders after whatsapp save:", getLocalOrders());
+      const customer = resolveCustomer();
+      const message = generateWhatsAppOrderMessage({
+        orderId: savedOrder.orderId || savedOrder.id,
+        customerName: customer.name,
+        phone: customer.phone,
+        address: customer.address,
+        landmark: customer.landmark,
+        notes: customer.notes,
+        items: checkoutItems,
+        totals,
+        paymentMethod: paymentMethod === "upi" ? "UPI" : "Cash on Delivery",
+        source: "whatsapp",
+      });
+      const whatsappLink = buildWhatsAppCheckoutLink(message);
+      if (!whatsappLink || whatsappLink === "javascript:void(0)") {
+        throw new Error("Could not create WhatsApp link");
+      }
+      window.location.assign(whatsappLink);
+    } catch (error) {
+      setSubmitError(error?.message || "Unable to open WhatsApp checkout right now.");
+    } finally {
+      setWhatsappLoading(false);
+    }
+  };
+
+  const handlePlaceOrder = async () => {
+    if (!handleValidation()) return;
+
+    setAppLoading(true);
+    setSubmitError("");
+
+    try {
+      const orderPayload = buildOrderBase("placed");
+      console.debug("[Checkout] app order payload before save:", orderPayload);
+      const savedOrder = await createOrder(orderPayload);
+      console.debug("[Checkout] local orders after app save:", getLocalOrders());
+      navigate(`/order-success/${savedOrder.orderId || savedOrder.id}`, {
+        state: { success: true, orderId: savedOrder.orderId || savedOrder.id, order: savedOrder },
+      });
+    } catch (error) {
+      setSubmitError(error?.message || "Unable to place the order in the app.");
+    } finally {
+      setAppLoading(false);
+    }
+  };
+
+  if (bootstrapping) {
     return (
-      <div className="min-h-screen bg-slate-50 pb-24">
-        <EmptyState
-          title={lang === "hi" ? "No items found" : "No items found"}
-          description={lang === "hi" ? "No items in cart or buy now." : "No items in cart or buy now."}
-          action={() => navigate("/cart")}
-          actionText={lang === "hi" ? "Go to Cart" : "Go to Cart"}
-        />
+      <div className="min-h-screen bg-slate-50 px-4 pb-28 pt-4">
+        <div className="mx-auto max-w-md space-y-4">
+          <div className="h-24 animate-pulse rounded-[24px] bg-white shadow-sm ring-1 ring-slate-100" />
+          <div className="h-56 animate-pulse rounded-[24px] bg-white shadow-sm ring-1 ring-slate-100" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
-      <main className="mx-auto max-w-md space-y-4 px-4 pt-4">
-        <div className="flex items-center gap-3 rounded-[24px] bg-white p-3 shadow-sm ring-1 ring-slate-100">
-          <button type="button" onClick={() => navigate(-1)} className="rounded-2xl bg-slate-50 p-3 text-slate-700 ring-1 ring-slate-100" aria-label="Go back">
+    <div className="min-h-screen bg-slate-50 px-4 pb-40 pt-4">
+      <main className="mx-auto max-w-md space-y-4">
+        <div className="flex items-center gap-3 rounded-[20px] bg-white p-3 shadow-sm ring-1 ring-slate-100">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="rounded-xl bg-slate-50 p-2.5 text-slate-700 ring-1 ring-slate-100"
+            aria-label="Go back"
+          >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <div>
-            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Secure Checkout</p>
-            <h1 className="text-lg font-black text-slate-950">Complete your order</h1>
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">ApnaGaon Checkout</p>
+            <h1 className="text-lg font-black text-slate-950">Checkout</h1>
           </div>
         </div>
 
-        <CheckoutStepper activeStep={activeStep} lang={lang} />
+        <SelectedAddressCard
+          address={
+            selectedAddress
+              ? normalizeAddress(selectedAddress)
+              : locationState.latitude && locationState.longitude
+                ? {
+                    label: locationState.addressLabel || "Current Location",
+                    area: locationState.addressLabel || "Current location selected",
+                    source: locationState.locationSource || "manual",
+                    lat: locationState.latitude,
+                    lon: locationState.longitude,
+                    fullName: form.fullName || user?.name || "",
+                    phone: form.phone || user?.phone || "",
+                  }
+                : null
+          }
+          onChangeAddress={() =>
+            navigate("/select-address", {
+              state: {
+                returnTo: "/checkout",
+                checkoutState: location.state || {},
+              },
+            })
+          }
+          onChangeOnMap={() =>
+            navigate("/map-picker", {
+              state: {
+                returnTo: "/checkout",
+                checkoutState: location.state || {},
+                selectedAddress: selectedAddress ? normalizeAddress(selectedAddress) : null,
+              },
+            })
+          }
+        />
 
-        {activeStep === "address" ? (
-          <AddressStep lang={lang} locationIntelligence={locationIntelligence} onContinue={() => goTo("summary")} />
-        ) : null}
+        <CheckoutForm
+          form={form}
+          errors={errors}
+          touched={touched}
+          onChange={updateField}
+          onBlur={touchField}
+          onUseCurrentLocation={handleUseCurrentLocation}
+          onChangeAddress={() =>
+            navigate("/select-address", {
+              state: {
+                returnTo: "/checkout",
+                checkoutState: location.state || {},
+              },
+            })
+          }
+          addressType={addressType}
+          onAddressTypeChange={setAddressType}
+          locationState={locationState}
+          showErrors={hasAttemptedSubmit}
+          submitError={submitError}
+        />
 
-        {activeStep === "summary" ? (
-          <OrderSummaryStep
-            lang={lang}
-            address={locationIntelligence.address}
-            items={checkoutItems}
-            pricing={pricing}
-            rewardLabel={selectedReward?.name || appliedCoupon?.label || ""}
-            deliveryEstimate={locationIntelligence.deliveryEstimate}
-            onChangeAddress={() => goTo("address")}
-            onBackToCart={() => navigate("/cart")}
-            onContinue={() => (hasUsableAddress ? goTo("payment") : goTo("address"))}
-          />
-        ) : null}
+        <DeliveryDetailsCard
+          note={form.notes}
+          onNoteChange={(value) => updateField("notes", value)}
+          contactless={contactless}
+          onContactlessChange={setContactless}
+          etaLabel={`${locationState.latitude && locationState.longitude ? "20-30 min" : "30 min"}`}
+        />
 
-        {activeStep === "payment" ? (
-          <PaymentStep
-            lang={lang}
-            pricing={pricing}
-            appliedCoupon={appliedCoupon}
-            paymentMethod={paymentMethod}
-            upiMethod={upiMethod}
-            paymentStatus={paymentStatus}
-            paymentError={paymentError}
-            placingOrder={placingOrder}
-            onApplyCoupon={applyCoupon}
-            onRemoveCoupon={() => setAppliedCoupon(null)}
-            onPaymentMethodChange={setPaymentMethod}
-            onUpiMethodChange={setUpiMethod}
-            onPlaceOrder={processPaymentAndOrder}
-            onRetryPayment={processPaymentAndOrder}
-          />
-        ) : null}
+        <OrderSummary items={checkoutItems} totals={totals} />
+
+        <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} error={hasAttemptedSubmit ? errors.paymentMethod : ""} />
+
+        <section className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-slate-100">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+              <ShieldCheck className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-black text-slate-950">Safe local ordering</p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">Easy support on WhatsApp and secure order confirmation.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleWhatsAppOrder}
+            disabled={whatsappLoading || appLoading}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-[16px] bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700 ring-1 ring-emerald-100 disabled:opacity-70"
+          >
+            <MessageCircle className="h-4 w-4" />
+            {whatsappLoading ? "Opening WhatsApp..." : "Order on WhatsApp"}
+          </button>
+          <p className="mt-2 text-[11px] font-semibold text-slate-500">Pay on WhatsApp later if you prefer the chat confirmation flow.</p>
+        </section>
       </main>
+
+      <div className="fixed bottom-16 left-0 right-0 z-30 border-t border-slate-200 bg-white/96 px-4 py-3 shadow-[0_-12px_32px_rgba(15,23,42,0.12)] backdrop-blur">
+        <div className="mx-auto flex max-w-md items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">Total payable</p>
+            <p className="text-lg font-black text-slate-950">{formatPrice(totals.total)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handlePlaceOrder}
+            disabled={whatsappLoading || appLoading}
+            className="inline-flex min-h-12 items-center justify-center rounded-[16px] bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_28px_rgba(249,115,22,0.22)] disabled:bg-orange-300"
+          >
+            {appLoading ? "Placing Order..." : "Place Order"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

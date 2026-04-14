@@ -1,21 +1,38 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { getCartFromLocalStorage, saveCartToLocalStorage } from "../utils/storage";
+import {
+  getCartFromLocalStorage,
+  getCartMetaFromLocalStorage,
+  saveCartMetaToLocalStorage,
+  saveCartToLocalStorage,
+} from "../utils/storage";
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
   const [cart, setCart] = useState([]);
+  const [appliedReward, setAppliedReward] = useState(null);
+  const [coupon, setCoupon] = useState(null);
 
   // Initialize cart from localStorage on mount
   useEffect(() => {
     const savedCart = getCartFromLocalStorage();
+    const savedMeta = getCartMetaFromLocalStorage();
     setCart(savedCart);
+    setAppliedReward(savedMeta?.appliedReward || null);
+    setCoupon(savedMeta?.coupon || null);
   }, []);
 
   // Save cart to localStorage whenever it changes
   useEffect(() => {
     saveCartToLocalStorage(cart);
   }, [cart]);
+
+  useEffect(() => {
+    saveCartMetaToLocalStorage({
+      appliedReward,
+      coupon,
+    });
+  }, [appliedReward, coupon]);
 
   const addToCart = (product) => {
     setCart((prevCart) => {
@@ -51,6 +68,8 @@ export const CartProvider = ({ children }) => {
 
   const clearCart = () => {
     setCart([]);
+    setAppliedReward(null);
+    setCoupon(null);
   };
 
   const getTotalPrice = () => {
@@ -75,6 +94,10 @@ export const CartProvider = ({ children }) => {
     removeFromCart,
     updateQuantity,
     clearCart,
+    appliedReward,
+    setAppliedReward,
+    coupon,
+    setCoupon,
     getTotalPrice,
     getTotalItems,
     getCartItemCount,

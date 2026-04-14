@@ -335,22 +335,22 @@ const OrderTrackingPage = () => {
             </div>
           </div>
 
-          <div className="px-4 py-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <OrderStatusBadge status={displayOrder.status || "placed"} />
-              <PaymentStatusBadge status={displayOrder.paymentStatus || displayOrder.payment?.status || "pending"} />
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-slate-600">
-                Updated {formatLastUpdated(displayOrder.updatedAt || displayOrder.createdAt)}
-              </span>
-            </div>
-            <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
-              This page stays connected to your order, so when the shop or rider moves the status forward, the timeline updates here too.
-            </p>
+        <div className="px-4 py-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <OrderStatusBadge status={displayOrder.status || "placed"} />
+            <PaymentStatusBadge status={displayOrder.paymentStatus || displayOrder.payment?.status || "pending"} />
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-slate-600">
+              Updated {formatLastUpdated(displayOrder.updatedAt || displayOrder.createdAt)}
+            </span>
           </div>
+          <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
+            This page stays connected to your order, so when the shop or rider moves the status forward, the timeline updates here too.
+          </p>
         </div>
-
-        <DeliveryTrackingCard order={displayOrder} />
       </div>
+
+      <DeliveryTrackingCard order={displayOrder} />
+    </div>
     </div>
   );
 };

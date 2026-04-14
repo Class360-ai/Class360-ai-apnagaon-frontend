@@ -17,8 +17,8 @@ const orderSchema = new mongoose.Schema(
     address: { type: Object, default: {} },
     items: { type: Array, default: [] },
     shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", default: null },
-    riderId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
-    deliveryPartnerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    riderId: { type: mongoose.Schema.Types.ObjectId, ref: "DeliveryPartner", default: null },
+    deliveryPartnerId: { type: mongoose.Schema.Types.ObjectId, ref: "DeliveryPartner", default: null },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     orderId: { type: String, index: true },
     totals: { type: Object, default: {} },
@@ -42,7 +42,7 @@ const orderSchema = new mongoose.Schema(
     note: { type: String, default: "" },
     status: {
       type: String,
-      enum: ["placed", "confirmed", "preparing", "assigned", "picked_up", "on_the_way", "out_for_delivery", "delivered", "failed_delivery", "cancelled"],
+      enum: ["placed", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled", "assigned", "picked_up", "on_the_way", "failed_delivery"],
       default: "placed",
     },
     trackingSteps: { type: [trackingStepSchema], default: [{ status: "placed", note: "Order placed" }] },
@@ -50,7 +50,7 @@ const orderSchema = new mongoose.Schema(
     riderPhone: { type: String, default: "" },
     assignedAt: { type: Date, default: null },
     eta: { type: String, default: "" },
-    etaMinutes: { type: Number, default: 30 },
+    etaMinutes: { type: Number, default: 20 },
   },
   { timestamps: true }
 );

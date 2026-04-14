@@ -76,7 +76,7 @@ app.use("/api", seedRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/shops", shopRoutes);
 app.use("/api/services", serviceRoutes);
-app.use("/api/orders", orderRoutes);
+app.use("/api", orderRoutes);
 app.use("/api/addresses", addressRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);

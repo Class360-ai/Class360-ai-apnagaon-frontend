@@ -198,7 +198,7 @@ const OrderHistoryPage = () => {
                       onClick={() => openOrder(order)}
                       className="rounded-full bg-slate-100 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-200"
                     >
-                      View details
+                      Track order
                     </button>
                     <button
                       type="button"

@@ -42,7 +42,7 @@ const AdminDeliveryPage = () => {
     setLoading(true);
     const [orderData, partnerData, userData] = await Promise.all([
       safeFetch(() => ordersAPI.getAll(), []),
-      safeFetch(() => deliveryPartnersAPI.getAll(), []),
+      safeFetch(() => deliveryPartnersAPI.getAll({ includeUnavailable: true }), []),
       safeFetch(() => authAPI.users(), []),
     ]);
 

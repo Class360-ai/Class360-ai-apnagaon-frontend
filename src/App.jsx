@@ -12,10 +12,12 @@ import FoodPage from "./pages/FoodPage";
 import ServicesPage from "./pages/ServicesPage";
 import PartnerPage from "./pages/PartnerPage";
 import CheckoutPage from "./pages/CheckoutPage";
+import SelectAddress from "./pages/SelectAddress";
+import MapPicker from "./pages/MapPicker";
 import CartPage from "./pages/CartPage";
 import ProfilePage from "./pages/ProfilePage";
-import OrderConfirmationPage from "./pages/OrderConfirmationPage";
-import OrderTrackingPage from "./pages/OrderTrackingPage";
+import OrderSuccessPage from "./pages/OrderSuccessPage";
+import TrackOrder from "./pages/TrackOrder";
 import OrderHistoryPage from "./pages/OrderHistoryPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -98,6 +100,8 @@ function App() {
                 <Route path="/checkout/address" element={<CheckoutPage />} />
                 <Route path="/checkout/summary" element={<CheckoutPage />} />
                 <Route path="/checkout/payment" element={<CheckoutPage />} />
+                <Route path="/select-address" element={<SelectAddress />} />
+                <Route path="/map-picker" element={<MapPicker />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/orders" element={<OrderHistoryPage />} />
                 <Route path="/my-orders" element={<ProtectedRoute roles={["customer", "owner"]}><OrderHistoryPage /></ProtectedRoute>} />
@@ -110,8 +114,10 @@ function App() {
                 <Route path="/terms" element={<TermsPage />} />
                 <Route path="/refund-policy" element={<RefundPolicyPage />} />
                 <Route path="/delivery-policy" element={<DeliveryPolicyPage />} />
-                <Route path="/order-confirmed/:id?" element={<OrderConfirmationPage />} />
-                <Route path="/track-order/:id?" element={<OrderTrackingPage />} />
+                <Route path="/order-success/:id?" element={<OrderSuccessPage />} />
+                <Route path="/order-confirmed/:id?" element={<OrderSuccessPage />} />
+                <Route path="/track-order" element={<TrackOrder />} />
+                <Route path="/track-order/:orderId" element={<TrackOrder />} />
                 <Route path="/search" element={<SearchPage />} />
                 <Route
                   path="/categories"

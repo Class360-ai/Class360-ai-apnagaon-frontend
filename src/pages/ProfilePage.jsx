@@ -353,6 +353,13 @@ const ProfilePage = () => {
                       <p className="mt-1 text-xs font-semibold text-gray-500">{address.fullName || activeUser?.name || "Customer"}</p>
                     </div>
                     <MapPin className="h-4 w-4 text-emerald-600" />
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/track-order/${order.orderId || order.id || order._id}`)}
+                      className="mt-3 w-full rounded-full bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700"
+                    >
+                      Track order
+                    </button>
                   </div>
                   <p className="mt-2 text-xs text-gray-600">{renderAddress(address)}</p>
                 </div>
